@@ -8,8 +8,10 @@
 │ App web (PWA installable)│ ─────────► │ Caddy (certificats)          │
 │                          │            │   └─► Cairn (Next.js)        │
 │ Chiffrement du coffre et │            │         ├─ SQLite  /data/cairn.db
-│ des notes verrouillées   │            │         └─ Fichiers /data/files
-│ (clé en mémoire)         │            │                              │
+│ des notes verrouillées   │            │         ├─ Fichiers /data/files
+│ (clé en mémoire)         │            │         └─► IA : Hermes (VPS),
+│                          │            │             Anthropic ou OpenAI
+│                          │            │                              │
 └──────────────────────────┘            │ Hermes, Claude Code ──► /api │
                                         └──────────────────────────────┘
 ```
@@ -28,10 +30,11 @@ Une seule app, une seule base, un seul conteneur. C'est volontairement la même 
 | Chiffrement | Web Crypto (AES-256-GCM) + Argon2id | Standard, présent dans tous les navigateurs, voir [SECURITE.md](SECURITE.md) |
 | Design | Tokens de Metricove, accent indigo | Une suite cohérente. Metricove est orange, Cairn est indigo |
 | Mise en ligne | Docker + Caddy | Comme Metricove, derrière le même Caddy |
+| IA | Appels HTTP directs, sans SDK | Trois fournisseurs, une seule forme (un flux de texte). Rien à installer de plus |
 
 ## Les trois niveaux de protection
 
-1. **Notes normales** : lisibles par le serveur. C'est ce qui permet la recherche, l'API et bientôt l'IA. Protégées par le mot de passe de l'app et HTTPS.
+1. **Notes normales** : lisibles par le serveur. C'est ce qui permet la recherche, l'API et l'IA. Protégées par le mot de passe de l'app et HTTPS.
 2. **Notes verrouillées** (cadenas) : chiffrées dans le navigateur avec la clé du coffre. Le serveur ne garde qu'un bloc illisible. Le titre reste visible, pour s'y retrouver.
 3. **Coffre** : chaque élément (nom compris) est chiffré dans le navigateur. Le serveur sait seulement combien il y en a.
 
@@ -41,19 +44,23 @@ Une seule app, une seule base, un seul conteneur. C'est volontairement la même 
 src/
   app/
     (app)/            pages : notes, coffre, réglages
-    api/              routes : auth, notes, files, uploads, vault, settings
+    api/              routes : auth, notes, files, uploads, vault, settings, ai
     login/            page de connexion
     globals.css       tokens de design et rendu du Markdown
   components/         coque de l'app, éditeur, coffre, recherche
+    ai-assistant.tsx  bouton « IA », son menu et le panneau de réponse
   lib/
     crypto.ts         chiffrement du coffre (navigateur) + tests
     vault-store.ts    clé du coffre en mémoire, verrouillage automatique
     markdown.ts       Markdown vers HTML sûr
     upload.ts         envoi de fichiers par morceaux
+    ai.ts             IA sans secret ni réseau : validation, prompts, choix du
+                      fournisseur, lecture des flux SSE, insertion + tests
   server/
     db.ts             SQLite : schéma et requêtes
     password.ts       mot de passe de l'app (scrypt)
     session.ts        qui a le droit d'entrer
+    ai.ts             appel du fournisseur d'IA (clés, délais, erreurs)
   middleware.ts       protège tout sauf la connexion
 deploy/               Docker, Caddy, sauvegarde
 ```
@@ -84,9 +91,24 @@ Les apps natives parleront à la même API. Le chiffrement reste le même format
 
 Deux voies, compatibles entre elles :
 
-- **Dès maintenant, par l'API** : Claude Code (avec ton abonnement) ou Hermes lisent et écrivent des notes avec `API_TOKEN`. Rien à installer dans Cairn.
-- **Dans l'éditeur (roadmap)** : un bouton « Demander à l'IA » (résumer, réécrire, continuer, créer un fichier). Cairn appellera Hermes sur le VPS, comme Metricove le fait pour les légendes, ou directement l'API d'Anthropic ou d'OpenAI avec une clé.
+- **Par l'API** : Claude Code (avec ton abonnement) ou Hermes lisent et écrivent des notes avec `API_TOKEN`. Rien à installer dans Cairn.
+- **Dans l'éditeur** : le bouton « IA » (résumer, améliorer, corriger, continuer, traduire, consigne libre). Cairn appelle Hermes sur le VPS, comme Metricove le fait pour les légendes, ou directement l'API d'Anthropic ou d'OpenAI avec une clé. Le mode d'emploi est dans [IA.md](IA.md).
+
+Le chemin d'une demande :
+
+```
+éditeur ── POST /api/ai {action, text, title} ──► src/server/ai.ts ──► fournisseur
+   ▲                                                    │                (flux SSE)
+   └────────── texte brut, au fil de l'eau ◄────────────┘
+```
+
+- **Le navigateur choisit une action, jamais un prompt.** Le prompt est construit sur le serveur (`buildPrompt` dans `src/lib/ai.ts`). La note et son titre y sont donnés comme un texte à travailler, entre des balises au nom aléatoire (nommées dans le prompt système, impossibles à refermer depuis la note), avec la consigne de ne pas obéir à ce qu'ils contiennent : une note collée depuis le web ne doit pas pouvoir piloter l'IA. Pour la même raison, le panneau affiche la réponse sans rien charger d'un autre site (`renderMarkdown(…, { remoteMedia: false })`).
+- **Un seul format vers le navigateur.** Hermes et OpenAI parlent le même langage (`/v1/chat/completions`), Anthropic le sien (`/v1/messages`). Le serveur lit leur flux SSE et ne renvoie que du texte : le navigateur n'a rien à savoir du fournisseur, et les clés ne quittent pas le serveur.
+- **Le choix du fournisseur** se fait dans `.env` : `AI_PROVIDER` s'il est défini, sinon le premier configuré dans l'ordre Hermes, Anthropic, OpenAI.
+- **La réponse ne touche pas la note toute seule.** Elle s'affiche dans un panneau, puis passe par le même chemin que la frappe (`change()` dans l'éditeur) quand tu choisis « Remplacer » ou « Insérer » : l'enregistrement automatique fait le reste.
+- **Délais** : 150 secondes de silence au plus pour Hermes (un agent peut se servir de ses outils avant de répondre), 120 pour les deux autres. C'est le temps sans aucune donnée du fournisseur, pas la durée totale de la réponse.
+- **Les erreurs avant le premier mot sont de vraies erreurs.** Les fournisseurs répondent 200 puis annoncent une surcharge, un quota ou un refus dans leur flux : le serveur attend donc le premier texte avant de répondre, et renvoie sinon un 502 avec la raison. Après, il ne peut plus que couper le flux (raison dans les journaux). Une connexion fermée sans le signal de fin du fournisseur compte comme une coupure, pas comme une réponse complète.
 
 À savoir : un abonnement Claude ou ChatGPT s'utilise à travers leurs outils (Claude Code, Codex), pas comme une clé d'API dans une app. C'est pour cela que la première voie passe par Claude Code ou Hermes.
 
-L'IA ne voit jamais le coffre ni les notes verrouillées : le serveur ne peut pas les lire.
+L'IA ne voit jamais le coffre ni les notes verrouillées : le serveur ne peut pas les lire, et l'éditeur refuse d'envoyer à l'IA le texte d'une note chiffrée, même déverrouillée.

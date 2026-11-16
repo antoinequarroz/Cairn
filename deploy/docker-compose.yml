@@ -21,6 +21,9 @@ services:
       - cairn-data:/data
     ports:
       - "${CAIRN_BIND:-172.17.0.1}:${CAIRN_PORT:-3020}:3000"
+    # Pour joindre Hermes, qui tourne directement sur le VPS (bouton « IA », voir docs/IA.md)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   caddy:
     profiles: ["caddy"]

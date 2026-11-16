@@ -17,8 +17,9 @@ En ligne sur **https://cairn.antoinequarroz.ch** (voir [docs/DEPLOIEMENT.md](doc
 - **Accès protégé** par mot de passe, modifiable dans Réglages.
 - **Installable** comme une app sur Mac (Safari, « Ajouter au Dock ») et sur iPhone (« Sur l'écran d'accueil »).
 - **API** pour Hermes et Claude Code, qui peuvent lire et écrire des notes.
+- **Demander à l'IA** dans l'éditeur : résumer, améliorer, corriger, continuer, traduire, ou une consigne libre, sur la sélection ou sur toute la note. La réponse s'affiche à part, tu choisis ensuite de l'insérer ou non. Branché sur Hermes, l'API d'Anthropic ou celle d'OpenAI ([docs/IA.md](docs/IA.md)). Jamais sur une note chiffrée.
 
-La suite (IA, dossiers, apps Mac et iOS natives) est dans [docs/ROADMAP.md](docs/ROADMAP.md).
+La suite (dossiers, questions sur toutes les notes, apps Mac et iOS natives) est dans [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Lancer en local
 
@@ -30,7 +31,7 @@ pnpm dev
 Puis ouvrir http://localhost:3000. Sans `APP_PASSWORD`, l'app est ouverte en local (et refuse de démarrer en production).
 
 ```bash
-pnpm test    # tests du chiffrement
+pnpm test    # tests du chiffrement et de l'IA (prompts, lecture des flux)
 pnpm lint
 pnpm build
 ```
@@ -45,6 +46,12 @@ Copier `.env.example` en `.env.local` (en local) ou `.env` (sur le VPS) :
 | `API_TOKEN` | Jeton pour Hermes et Claude Code (`Authorization: Bearer …` sur `/api`). N'ouvre jamais le coffre. |
 | `DATA_DIR` | Dossier de la base SQLite et des fichiers joints (`./data` par défaut). |
 | `MAX_FILE_MB` | Taille maximale d'un fichier joint (500 Mo par défaut). |
+| `HERMES_URL`, `HERMES_API_KEY`, `HERMES_MODEL` | Bouton « IA » avec Hermes, ton agent sur le VPS (modèle `hermes-agent` par défaut). |
+| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | Bouton « IA » avec l'API d'Anthropic (`claude-opus-5-5` par défaut). |
+| `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL` | Bouton « IA » avec l'API d'OpenAI ou un serveur compatible (`gpt-5.1` par défaut). |
+| `AI_PROVIDER` | Impose `hermes`, `anthropic` ou `openai`. Sans lui : le premier configuré, dans cet ordre. |
+
+Un seul fournisseur d'IA suffit, et aucun n'est obligatoire. Le détail est dans [docs/IA.md](docs/IA.md).
 
 Le **mot de passe maître du coffre** n'est pas une variable : il se choisit dans l'app, n'est jamais envoyé au serveur, et ne peut pas être récupéré s'il est perdu.
 
@@ -60,6 +67,8 @@ Le **mot de passe maître du coffre** n'est pas une variable : il se choisit dan
 | POST | `/api/files` | Commencer l'envoi d'un fichier (`name`, `mime`, `size`) |
 | PUT | `/api/uploads/:id?offset=N` | Envoyer un morceau du fichier (8 Mo au plus) |
 | GET | `/api/files/:id` | Télécharger un fichier |
+| GET | `/api/ai` | Savoir si une IA est branchée, et laquelle |
+| POST | `/api/ai` | Demander à l'IA (`action`, `text`, `title`, `instruction`, `language`). La réponse arrive en texte, au fil de l'eau |
 
 ```bash
 curl -H "Authorization: Bearer $API_TOKEN" -H "Content-Type: application/json" \
@@ -74,6 +83,7 @@ Les notes chiffrées de bout en bout sont renvoyées chiffrées : un script ne p
 - [Architecture](docs/ARCHITECTURE.md) : comment c'est construit, et pourquoi
 - [Sécurité](docs/SECURITE.md) : ce qui est chiffré, contre quoi, et les limites
 - [Déploiement](docs/DEPLOIEMENT.md) : mise en ligne sur le VPS, sauvegardes
+- [IA](docs/IA.md) : brancher Hermes, Anthropic ou OpenAI, et ce qui leur est envoyé
 - [Roadmap](docs/ROADMAP.md) : les prochaines étapes
 
 ## Stack

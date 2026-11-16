@@ -45,12 +45,29 @@ Le code est dans `src/lib/crypto.ts`, avec ses tests (`pnpm test`).
 - Le Markdown est nettoyé avant affichage. Les fichiers joints qui ne sont pas des images, vidéos, sons ou PDF sont toujours téléchargés, jamais affichés : un fichier HTML envoyé ne peut pas exécuter de script sur l'app.
 - Cookie de session `HttpOnly`, `SameSite=Lax`, `Secure` en production.
 
+## Ce que l'IA voit
+
+Le bouton « IA » n'envoie quelque chose que lorsque tu choisis une action, et seulement ceci :
+
+| Envoyé au fournisseur d'IA | Jamais envoyé |
+| --- | --- |
+| Le passage sélectionné, ou la note si rien n'est sélectionné (pour « Continuer » : le texte avant le curseur) | Le coffre |
+| Le titre de la note | Les notes chiffrées de bout en bout |
+| Ta consigne, pour « Consigne libre » | Les autres notes, les fichiers joints |
+
+- **Notes chiffrées** : l'IA y est désactivée, même quand la note est déverrouillée à l'écran. S'en servir enverrait le texte déchiffré au serveur, puis au fournisseur. Le blocage est fait dans le code qui envoie la demande, pas seulement dans le menu.
+- **Où part le texte** : avec Hermes, il va de Cairn à Hermes sans quitter le VPS, puis Hermes l'envoie au modèle que tu lui as configuré. Avec Anthropic ou OpenAI, il part chez eux, sous leurs conditions d'API. Sans fournisseur configuré, rien ne part nulle part.
+- **Les clés d'API** restent dans le `.env` du serveur. Le navigateur ne les reçoit jamais, et elles sont retirées des messages d'erreur, comme les identifiants qu'une adresse pourrait contenir (`utilisateur:motdepasse@`).
+- **Une note ne commande pas l'IA** : son contenu et son titre sont présentés au modèle comme un texte à travailler, pas comme des instructions, entre des balises au nom tiré au hasard à chaque demande (un texte collé qui contient `</note>` ne referme rien). C'est une défense en profondeur, pas une garantie : un modèle peut quand même se laisser influencer. Relis ce que l'IA propose avant de l'insérer. Rien n'est écrit dans la note sans ton clic. Avec Hermes, la vraie limite est celle des outils que tu as donnés à l'agent.
+- **La réponse ne charge rien d'un autre site** : dans le panneau, elle est affichée sans image, vidéo ni style distants (ils deviennent des liens à cliquer). Sinon, un texte piégé pourrait faire écrire à l'IA une adresse d'image qui emporte un bout de la note vers un tiers, avant même ton clic. Une fois insérée dans la note, la réponse est du Markdown comme le reste : l'aperçu affiche alors ses images.
+- `API_TOKEN` donne aussi accès à `/api/ai` : un script qui a le jeton peut utiliser ton IA (et donc ta clé ou ton Hermes).
+
 ## Limites à connaître
 
 Mieux vaut les avoir en tête que les découvrir :
 
 1. **Le code vient du serveur.** Comme tout gestionnaire de mots de passe web, le chiffrement est fait par du JavaScript servi par le VPS. Quelqu'un qui contrôle le VPS **pendant que tu l'utilises** pourrait servir une page modifiée qui capte le mot de passe maître. Les apps natives prévues (Tauri, iOS) retirent cette limite : leur code ne vient pas du serveur.
-2. **Les notes normales ne sont pas chiffrées dans la base.** C'est le choix fait pour garder la recherche et l'IA simples. Utilise le cadenas pour ce qui est sensible, et active le chiffrement du disque du VPS si ton hébergeur le propose.
+2. **Les notes normales ne sont pas chiffrées dans la base.** C'est le choix fait pour garder la recherche et l'IA simples. Et ce que tu confies au bouton « IA » sort du VPS si le fournisseur est Anthropic ou OpenAI. Utilise le cadenas pour ce qui est sensible, et active le chiffrement du disque du VPS si ton hébergeur le propose.
 3. **Le titre d'une note verrouillée reste lisible**, ainsi que les fichiers joints à cette note.
 4. **Un seul utilisateur.** Pas de comptes, pas de partage.
 5. **Pas encore de double authentification** (prévue : passkeys).

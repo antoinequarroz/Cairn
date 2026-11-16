@@ -26,9 +26,10 @@ Un seul endroit, chez moi, pour ce que j'écris et ce que je dois garder secret.
 
 ## Étape 3 : l'IA
 
-- [ ] « Demander à l'IA » dans l'éditeur : résumer, réécrire, continuer, traduire
+- [x] « Demander à l'IA » dans l'éditeur : résumer, améliorer, corriger, continuer, traduire, consigne libre
+- [x] Branchement sur Hermes (VPS) ou sur l'API d'Anthropic ou d'OpenAI, au choix dans `.env` ([IA.md](IA.md))
+- [ ] Choisir le fournisseur et le modèle dans Réglages, sans toucher au `.env`
 - [ ] Créer une note ou un fichier à partir d'une consigne
-- [ ] Branchement sur Hermes (VPS) ou sur l'API d'Anthropic ou d'OpenAI, au choix dans Réglages
 - [ ] Skill Hermes et commande Claude Code pour Cairn
 - [ ] Questions sur l'ensemble des notes
 

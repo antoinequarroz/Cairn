@@ -1,0 +1,33 @@
+import { describe, expect, it } from "vitest";
+import { isOwnFile } from "./markdown";
+
+describe("Markdown : médias d'une réponse d'IA", () => {
+  const origin = "https://cairn.exemple.ch";
+
+  it("reconnaît les fichiers joints de l'app", () => {
+    expect(isOwnFile("/api/files/abc123", origin)).toBe(true);
+    expect(isOwnFile("https://cairn.exemple.ch/api/files/abc123", origin)).toBe(true);
+  });
+
+  it("refuse tout ce qui part vers un autre site, même écrit comme un chemin local", () => {
+    for (const src of [
+      "https://evil.example/p?d=secret",
+      "//evil.example/api/files/x",
+      "/\\evil.example/api/files/x",
+      "\\\\evil.example/api/files/x",
+      "/\t/evil.example/api/files/x",
+      "https://cairn.exemple.ch.evil.example/api/files/x",
+      "https://cairn.exemple.ch@evil.example/api/files/x",
+      "http://cairn.exemple.ch/api/files/x",
+      "data:image/png;base64,AAAA",
+      "https://exa mple/",
+    ])
+      expect(isOwnFile(src, origin), src).toBe(false);
+  });
+
+  it("refuse les autres routes de l'app : une image ne doit appeler que des fichiers", () => {
+    expect(isOwnFile("/api/notes?q=secret", origin)).toBe(false);
+    expect(isOwnFile("/api/files/../notes", origin)).toBe(false);
+    expect(isOwnFile("/logout", origin)).toBe(false);
+  });
+});

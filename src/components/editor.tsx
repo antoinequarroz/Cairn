@@ -12,6 +12,7 @@ import type { Note } from "@/lib/types";
 import { uploadFile } from "@/lib/upload";
 import { api, cn } from "@/lib/utils";
 import { useVaultKey, vaultKey } from "@/lib/vault-store";
+import { AiButton, AiPanel, useAi, type AiTarget } from "./ai-assistant";
 import { Button } from "./ui";
 import { UnlockForm } from "./unlock-form";
 
@@ -135,6 +136,22 @@ export function Editor({ id }: { id: string }) {
     change({ content: next });
   };
 
+  // The assistant reads the draft (always the latest text) and writes back through change(), like typing does.
+  const aiTarget = useMemo<AiTarget>(
+    () => ({
+      getContent: () => draft.current.content,
+      getTitle: () => draft.current.title,
+      isEncrypted: () => draft.current.encrypted,
+      area,
+      apply: (next) => {
+        setContent(next);
+        change({ content: next });
+      },
+    }),
+    [change],
+  );
+  const ai = useAi(aiTarget, !!note?.encrypted);
+
   const upload = async (files: File[]) => {
     for (const file of files) {
       setUploading((n) => n + 1);
@@ -192,7 +209,7 @@ export function Editor({ id }: { id: string }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center gap-2 border-b border-line px-5 py-2.5 max-md:px-3">
+      <div className="relative flex items-center gap-2 border-b border-line px-5 py-2.5 max-md:px-3">
         <div className="flex rounded-lg border border-line bg-surface-2 p-0.5">
           {MODES.map(({ mode: m, label, Icon }) => (
             <button
@@ -216,6 +233,7 @@ export function Editor({ id }: { id: string }) {
             <Paperclip className="size-3.5" />
             <span className="max-md:hidden">Joindre</span>
           </Button>
+          <AiButton ai={ai} disabled={locked} />
           <Button size="sm" variant="ghost" disabled={locked} onClick={toggleLock} title={note.encrypted ? "Retirer le chiffrement de bout en bout" : "Chiffrer cette note de bout en bout"} className={cn(note.encrypted && "text-accent")}>
             {note.encrypted ? <Lock className="size-3.5" /> : <LockOpen className="size-3.5" />}
             <span className="max-md:hidden">{note.encrypted ? "Chiffrée" : "Chiffrer"}</span>
@@ -281,6 +299,7 @@ export function Editor({ id }: { id: string }) {
           )}
         </div>
       )}
+      {!locked && <AiPanel ai={ai} />}
     </div>
   );
 }
