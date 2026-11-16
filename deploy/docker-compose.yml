@@ -1,0 +1,45 @@
+# Cairn sur le VPS.
+#
+# Si Metricove tourne déjà sur ce VPS, son Caddy occupe les ports 80 et 443 : Cairn passe par lui
+# (voir docs/DEPLOIEMENT.md, étape 3).
+#
+#   cd deploy && docker compose up -d --build
+#
+# Sur un serveur sans autre Caddy, lance aussi celui fourni ici :
+#
+#   cd deploy && docker compose --profile caddy up -d --build
+
+services:
+  cairn:
+    build: ..
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      DATA_DIR: /data
+      TZ: Europe/Zurich
+    volumes:
+      - cairn-data:/data
+    ports:
+      - "${CAIRN_BIND:-172.17.0.1}:${CAIRN_PORT:-3020}:3000"
+
+  caddy:
+    profiles: ["caddy"]
+    image: caddy:2.10
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      CAIRN_DOMAIN: ${CAIRN_DOMAIN:-cairn.antoinequarroz.ch}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - cairn
+
+volumes:
+  cairn-data:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,4 @@
+allowBuilds:
+  better-sqlite3: true
+minimumReleaseAgeExclude:
+  - marked@18.2.1

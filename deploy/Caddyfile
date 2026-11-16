@@ -1,0 +1,12 @@
+# Caddy obtient et renouvelle les certificats HTTPS tout seul.
+# Utilisé seulement avec « --profile caddy ». Avec le Caddy de Metricove, voir docs/DEPLOIEMENT.md.
+
+{$CAIRN_DOMAIN} {
+	encode zstd gzip
+	header Strict-Transport-Security "max-age=31536000"
+	# Fichiers joints (vidéos) jusqu'à 500 Mo
+	request_body {
+		max_size 500MB
+	}
+	reverse_proxy cairn:3000
+}

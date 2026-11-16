@@ -1,0 +1,29 @@
+import { safeEqual, SESSION_COOKIE } from "./auth";
+import { currentSessionToken } from "./password";
+
+/**
+ * Who may come in. Everything is private once a password is set (APP_PASSWORD, or the one changed
+ * in Réglages). Scripts (Hermes, Claude Code) can use "Authorization: Bearer <API_TOKEN>" on /api
+ * routes, except the vault: it is only ever opened in a browser, with the master password.
+ */
+export async function checkAccess(pathname: string, authorization: string | null, cookie: string | undefined): Promise<"ok" | "denied" | "unconfigured"> {
+  const expected = await currentSessionToken();
+  if (!expected) {
+    // No password in production would publish every note: refuse instead.
+    return process.env.NODE_ENV === "production" && process.env.ALLOW_NO_PASSWORD !== "true" ? "unconfigured" : "ok";
+  }
+  const apiToken = process.env.API_TOKEN;
+  const bearer = authorization?.replace(/^Bearer\s+/i, "");
+  if (apiToken && bearer && pathname.startsWith("/api/") && !pathname.startsWith("/api/vault") && safeEqual(bearer, apiToken)) return "ok";
+  return cookie && safeEqual(cookie, expected) ? "ok" : "denied";
+}
+
+/** For the few routes the middleware does not cover. */
+export async function authorized(req: Request) {
+  const cookie = req.headers
+    .get("cookie")
+    ?.split(/;\s*/)
+    .find((c) => c.startsWith(`${SESSION_COOKIE}=`))
+    ?.slice(SESSION_COOKIE.length + 1);
+  return (await checkAccess(new URL(req.url).pathname, req.headers.get("authorization"), cookie)) === "ok";
+}
