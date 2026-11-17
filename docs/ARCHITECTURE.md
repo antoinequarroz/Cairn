@@ -92,7 +92,7 @@ Les apps natives parleront à la même API. Le chiffrement reste le même format
 Deux voies, compatibles entre elles :
 
 - **Par l'API** : Claude Code (avec ton abonnement) ou Hermes lisent et écrivent des notes avec `API_TOKEN`. Rien à installer dans Cairn.
-- **Dans l'éditeur** : le bouton « IA » (résumer, améliorer, corriger, continuer, traduire, consigne libre). Cairn appelle Hermes sur le VPS, comme Metricove le fait pour les légendes, ou directement l'API d'Anthropic ou d'OpenAI avec une clé. Le mode d'emploi est dans [IA.md](IA.md).
+- **Dans l'éditeur** : le bouton « IA » (résumer, améliorer, corriger, continuer, traduire, consigne libre). Cairn appelle Hermes sur le VPS, comme Metricove le fait pour les légendes, ou directement l'API d'Anthropic ou d'OpenAI avec une clé. Tout se règle dans Réglages > IA (clés chiffrées, `src/server/ai-settings.ts`), le `.env` restant le repli. Le mode d'emploi est dans [IA.md](IA.md).
 
 Le chemin d'une demande :
 

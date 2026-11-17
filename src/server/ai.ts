@@ -1,23 +1,37 @@
 import "server-only";
-import { anthropicDelta, badProviderUrl, buildPrompt, createSseParser, openAiDelta, pickProvider, redactSecrets, type AiInput, type AiStatus, type Delta, type ProviderChoice } from "@/lib/ai";
+import {
+  anthropicDelta,
+  badProviderUrl,
+  buildPrompt,
+  createSseParser,
+  describeProvider,
+  openAiDelta,
+  pickProvider,
+  redactSecrets,
+  type AiInput,
+  type AiStatus,
+  type Delta,
+  type ProviderChoice,
+  type ProviderId,
+} from "@/lib/ai";
+import { aiEnv, aiSecrets } from "./ai-settings";
 
 /** An error whose message is safe and meant to be shown to the user, in French. */
 export class AiError extends Error {}
 
 export function aiStatus(): AiStatus {
-  const { ready, provider, label } = pickProvider(process.env);
+  const { ready, provider, label } = pickProvider(aiEnv());
   return { ready, provider, label };
 }
 
 // The longest silence accepted from a provider, before its first byte and between two chunks. It is
 // not a cap on the whole answer: a long translation may stream for many minutes. Hermes is an agent:
 // it may call tools without a word, so it gets longer than a plain model.
-const TIMEOUT_MS = { hermes: 150_000, anthropic: 120_000, openai: 120_000 };
+const TIMEOUT_MS: Record<ProviderId, number> = { hermes: 150_000, anthropic: 120_000, openai: 120_000 };
 
 type Upstream = { url: string; headers: Record<string, string>; body: unknown; delta: (data: string) => Delta };
 
-function upstream({ provider, model }: ProviderChoice, system: string, user: string): Upstream {
-  const env = process.env;
+function upstream({ provider, model }: ProviderChoice, env: Record<string, string | undefined>, system: string, user: string): Upstream {
   const chat = [
     { role: "system", content: system },
     { role: "user", content: user },
@@ -52,7 +66,7 @@ function upstream({ provider, model }: ProviderChoice, system: string, user: str
 }
 
 /** Keys and URL credentials must never appear in an error message, whatever the upstream echoes back. */
-const redact = (message: string) => redactSecrets(message, [process.env.HERMES_API_KEY?.trim(), process.env.ANTHROPIC_API_KEY?.trim(), process.env.OPENAI_API_KEY?.trim()]);
+const redact = (message: string) => redactSecrets(message, aiSecrets());
 
 const short = (s: string) => redact(s.replace(/\s+/g, " ").trim()).slice(0, 200);
 
@@ -64,11 +78,12 @@ const short = (s: string) => redact(s.replace(/\s+/g, " ").trim()).slice(0, 200)
  * a failure can only cut the stream; its reason goes to the logs.
  * Aborting `signal` (the browser went away, or pressed Stop) cancels the upstream request too.
  */
-export async function streamAnswer(input: AiInput, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>> {
-  const choice = pickProvider(process.env);
-  if (!choice.ready || !choice.provider) throw new AiError("Aucune IA n'est configurée");
+export async function streamAnswer(input: AiInput, signal?: AbortSignal, options: { provider?: ProviderId } = {}): Promise<ReadableStream<Uint8Array>> {
+  const env = aiEnv();
+  const choice = options.provider ? describeProvider(options.provider, env) : pickProvider(env);
+  if (!choice.ready || !choice.provider) throw new AiError(options.provider ? `${choice.label} n'est pas configuré` : "Aucune IA n'est configurée");
   const { system, user } = buildPrompt(input);
-  const up = upstream(choice, system, user);
+  const up = upstream(choice, env, system, user);
   // fetch refuses such an address with a message that quotes it, password included: say it plainly instead.
   if (badProviderUrl(up.url)) throw new AiError(`L'adresse de ${choice.label} est invalide : il faut une adresse http(s) complète, sans identifiants (utilisateur:motdepasse@). Voir docs/IA.md.`);
 
@@ -116,7 +131,7 @@ export async function streamAnswer(input: AiInput, signal?: AbortSignal): Promis
     finished = true;
     failed = error;
   };
-  const parser = createSseParser((data) => {
+  const onData = (data: string) => {
     if (finished) return;
     const d = up.delta(data);
     if (d.text) {
@@ -126,7 +141,8 @@ export async function streamAnswer(input: AiInput, signal?: AbortSignal): Promis
     if (d.stopped) stopped = true;
     if (d.error) fail(new AiError(`${choice.label} : ${short(d.error)}`));
     else if (d.done) finished = true;
-  });
+  };
+  const parser = createSseParser(onData);
 
   // Reads the upstream until there is text to hand over, or until it ends. One upstream chunk may
   // hold no text at all (role, thinking, keep-alive): stopping there would make the stream look stalled.

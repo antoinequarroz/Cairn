@@ -28,6 +28,7 @@ Un seul endroit, chez moi, pour ce que j'écris et ce que je dois garder secret.
 
 - [x] « Demander à l'IA » dans l'éditeur : résumer, améliorer, corriger, continuer, traduire, consigne libre
 - [x] Branchement sur Hermes (VPS) ou sur l'API d'Anthropic ou d'OpenAI, au choix dans `.env` ([IA.md](IA.md))
+- [x] Réglages > IA dans l'app : clés d'API et Hermes, choix du fournisseur et du modèle, clés chiffrées sur le serveur
 - [ ] Choisir le fournisseur et le modèle dans Réglages, sans toucher au `.env`
 - [ ] Créer une note ou un fichier à partir d'une consigne
 - [ ] Skill Hermes et commande Claude Code pour Cairn

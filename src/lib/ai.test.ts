@@ -272,3 +272,4 @@ describe("demande à l'IA : appliquer la réponse", () => {
     expect(appendInline("ab", 1, "X")).toBe("a Xb");
   });
 });
+

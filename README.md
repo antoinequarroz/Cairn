@@ -43,7 +43,8 @@ Copier `.env.example` en `.env.local` (en local) ou `.env` (sur le VPS) :
 | Variable | Rôle |
 | --- | --- |
 | `APP_PASSWORD` | Mot de passe de l'app. **Obligatoire en ligne.** Il se change ensuite dans **Réglages** : le nouveau est gardé (haché) dans `data/auth.json` et passe devant `APP_PASSWORD`. Mot de passe oublié : supprime ce fichier, `APP_PASSWORD` revient. |
-| `API_TOKEN` | Jeton pour Hermes et Claude Code (`Authorization: Bearer …` sur `/api`). N'ouvre jamais le coffre. |
+| `API_TOKEN` | Jeton pour Hermes et Claude Code (`Authorization: Bearer …` sur `/api`). N'ouvre jamais le coffre ni les réglages. |
+| `CAIRN_SECRET` | Facultatif. Chiffre les clés d'IA saisies dans Réglages (sinon `data/secret.key`, créé tout seul). |
 | `DATA_DIR` | Dossier de la base SQLite et des fichiers joints (`./data` par défaut). |
 | `MAX_FILE_MB` | Taille maximale d'un fichier joint (500 Mo par défaut). |
 | `HERMES_URL`, `HERMES_API_KEY`, `HERMES_MODEL` | Bouton « IA » avec Hermes, ton agent sur le VPS (modèle `hermes-agent` par défaut). |
@@ -51,7 +52,7 @@ Copier `.env.example` en `.env.local` (en local) ou `.env` (sur le VPS) :
 | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL` | Bouton « IA » avec l'API d'OpenAI ou un serveur compatible (`gpt-5.1` par défaut). |
 | `AI_PROVIDER` | Impose `hermes`, `anthropic` ou `openai`. Sans lui : le premier configuré, dans cet ordre. |
 
-Un seul fournisseur d'IA suffit, et aucun n'est obligatoire. Le détail est dans [docs/IA.md](docs/IA.md).
+Un seul fournisseur d'IA suffit, et aucun n'est obligatoire. Tout cela se règle aussi dans l'app, **Réglages > IA**, qui passe avant le `.env`. Le détail est dans [docs/IA.md](docs/IA.md).
 
 Le **mot de passe maître du coffre** n'est pas une variable : il se choisit dans l'app, n'est jamais envoyé au serveur, et ne peut pas être récupéré s'il est perdu.
 

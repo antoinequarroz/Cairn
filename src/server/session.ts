@@ -4,7 +4,8 @@ import { currentSessionToken } from "./password";
 /**
  * Who may come in. Everything is private once a password is set (APP_PASSWORD, or the one changed
  * in Réglages). Scripts (Hermes, Claude Code) can use "Authorization: Bearer <API_TOKEN>" on /api
- * routes, except the vault: it is only ever opened in a browser, with the master password.
+ * routes, except the vault (only ever opened in a browser, with the master password) and the
+ * settings (the app password and the AI keys are managed from a browser session only).
  */
 export async function checkAccess(pathname: string, authorization: string | null, cookie: string | undefined): Promise<"ok" | "denied" | "unconfigured"> {
   const expected = await currentSessionToken();
@@ -14,7 +15,7 @@ export async function checkAccess(pathname: string, authorization: string | null
   }
   const apiToken = process.env.API_TOKEN;
   const bearer = authorization?.replace(/^Bearer\s+/i, "");
-  if (apiToken && bearer && pathname.startsWith("/api/") && !pathname.startsWith("/api/vault") && safeEqual(bearer, apiToken)) return "ok";
+  if (apiToken && bearer && pathname.startsWith("/api/") && !pathname.startsWith("/api/vault") && !pathname.startsWith("/api/settings") && safeEqual(bearer, apiToken)) return "ok";
   return cookie && safeEqual(cookie, expected) ? "ok" : "denied";
 }
 

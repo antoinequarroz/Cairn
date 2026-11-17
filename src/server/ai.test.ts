@@ -2,6 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The real package throws outside a server bundle. It guards imports, it is not behaviour to test.
 vi.mock("server-only", () => ({}));
+// Settings saved in the app are read from the database: an empty one of its own, never ./data.
+vi.hoisted(async () => {
+  const { mkdtempSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "cairn-ai-"));
+});
 
 import { AiError, streamAnswer } from "./ai";
 

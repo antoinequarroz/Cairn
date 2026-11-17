@@ -83,20 +83,54 @@ export function buildPrompt(input: AiInput, nonce = newNonce()): { system: strin
 
 // --- Providers ---------------------------------------------------------------------------------
 
+/** Who can answer. The order is the one tried in automatic mode. */
 export const PROVIDERS = ["hermes", "anthropic", "openai"] as const;
 export type ProviderId = (typeof PROVIDERS)[number];
 
+export const isProvider = (v: unknown): v is ProviderId => typeof v === "string" && (PROVIDERS as readonly string[]).includes(v);
+
+/** The prefix of each provider's settings, as environment variables: ANTHROPIC_API_KEY, OPENAI_MODEL… */
+export const ENV_PREFIX: Record<ProviderId, string> = { hermes: "HERMES", anthropic: "ANTHROPIC", openai: "OPENAI" };
+
 export const DEFAULT_MODELS: Record<ProviderId, string> = { hermes: "hermes-agent", anthropic: "claude-opus-5-5", openai: "gpt-5.1" };
+
+/** Shown in the settings and under the AI menu. */
+export const PROVIDER_NAMES: Record<ProviderId, string> = {
+  hermes: "Hermes",
+  anthropic: "Claude (clé d'API)",
+  openai: "OpenAI (clé d'API)",
+};
 
 type Env = Record<string, string | undefined>;
 
+const set = (v: string | undefined) => !!v?.trim();
+
 const configured: Record<ProviderId, (env: Env) => boolean> = {
-  hermes: (env) => !!env.HERMES_URL?.trim() && !!env.HERMES_API_KEY?.trim(),
-  anthropic: (env) => !!env.ANTHROPIC_API_KEY?.trim(),
-  openai: (env) => !!env.OPENAI_API_KEY?.trim(),
+  hermes: (env) => set(env.HERMES_URL) && set(env.HERMES_API_KEY),
+  anthropic: (env) => set(env.ANTHROPIC_API_KEY),
+  openai: (env) => set(env.OPENAI_API_KEY),
 };
 
+export const providerConfigured = (provider: ProviderId, env: Env) => configured[provider](env);
+
 export type ProviderChoice = { provider: ProviderId | null; ready: boolean; model: string; label: string };
+
+export function providerLabel(provider: ProviderId, model: string) {
+  switch (provider) {
+    case "hermes":
+      return "Hermes";
+    case "anthropic":
+      return `Claude (${model})`;
+    case "openai":
+      return `OpenAI (${model})`;
+  }
+}
+
+/** One provider with its settings, whether or not it is complete. */
+export function describeProvider(provider: ProviderId, env: Env): ProviderChoice {
+  const model = env[`${ENV_PREFIX[provider]}_MODEL`]?.trim() || DEFAULT_MODELS[provider];
+  return { provider, ready: configured[provider](env), model, label: providerLabel(provider, model) };
+}
 
 /**
  * Which provider answers. AI_PROVIDER forces one (and is then never silently replaced by another:
@@ -105,13 +139,10 @@ export type ProviderChoice = { provider: ProviderId | null; ready: boolean; mode
 export function pickProvider(env: Env): ProviderChoice {
   const forced = env.AI_PROVIDER?.trim().toLowerCase();
   let provider: ProviderId | null;
-  if (forced) provider = (PROVIDERS as readonly string[]).includes(forced) ? (forced as ProviderId) : null;
+  if (forced && forced !== "auto") provider = isProvider(forced) ? forced : null;
   else provider = PROVIDERS.find((p) => configured[p](env)) ?? null;
   if (!provider) return { provider: null, ready: false, model: "", label: "" };
-
-  const model = env[`${provider.toUpperCase()}_MODEL`]?.trim() || DEFAULT_MODELS[provider];
-  const label = provider === "hermes" ? "Hermes" : provider === "anthropic" ? `Claude (${model})` : `OpenAI (${model})`;
-  return { provider, ready: configured[provider](env), model, label };
+  return describeProvider(provider, env);
 }
 
 // --- Server-sent events ------------------------------------------------------------------------

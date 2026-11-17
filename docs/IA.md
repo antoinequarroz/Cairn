@@ -26,11 +26,15 @@ Si tu as modifié la note pendant que l'IA écrivait, Cairn retrouve le passage 
 
 ## Brancher une IA
 
-Sans réglage, le bouton est là mais explique seulement comment l'activer. Il y a trois façons de le brancher, toutes dans le `.env` de Cairn (le même fichier que `APP_PASSWORD`). Une seule suffit. Après un changement : `cd deploy && docker compose up -d`.
+Le plus simple : **Réglages > Intelligence artificielle**, dans l'app. Tu y entres une clé d'API ou l'adresse de Hermes, tu choisis le fournisseur et le modèle, et le bouton **Tester** vérifie que ça répond (avec une phrase fixe : aucune note n'est envoyée). Les clés y sont gardées chiffrées sur le serveur et ne reviennent jamais dans le navigateur.
+
+Ce qui est saisi dans Réglages passe avant le `.env`. Un champ laissé vide prend la valeur du `.env`, qui reste un repli valable : les trois façons ci-dessous s'y règlent aussi (le même fichier que `APP_PASSWORD`). Après un changement du `.env` : `cd deploy && docker compose up -d`.
+
+Les clés saisies dans Réglages sont chiffrées avec `CAIRN_SECRET` si tu l'as mis dans le `.env` (recommandé, `openssl rand -hex 32`), sinon avec `data/secret.key`, créé tout seul. Si cette clé change ou se perd, Réglages affiche « Clé illisible » : il suffit de recoller la clé d'IA.
 
 ### 1. Hermes, comme Metricove
 
-C'est la voie à prendre si tu as un abonnement plutôt qu'une clé d'API : Hermes tourne déjà sur le VPS, avec le modèle que tu lui as donné.
+Hermes tourne déjà sur le VPS, avec le modèle que tu lui as donné. Il se règle aussi dans Réglages > IA (adresse et clé).
 
 Si Hermes sert déjà Metricove, son API est activée. Sinon, dans `~/.hermes/.env` sur le VPS :
 
@@ -98,7 +102,7 @@ OPENAI_BASE_URL=
 
 ### Lequel est utilisé ?
 
-Si plusieurs sont configurés, Cairn prend le premier dans l'ordre **Hermes, Anthropic, OpenAI**. Pour en imposer un :
+Celui choisi dans **Réglages > IA**. Sinon, si plusieurs sont configurés, Cairn prend le premier dans l'ordre **Hermes, Anthropic, OpenAI**. Pour en imposer un dans le `.env` :
 
 ```env
 AI_PROVIDER=anthropic
@@ -108,10 +112,11 @@ Le menu du bouton rappelle en bas avec qui il parle (« Avec Hermes »).
 
 ## Et mon abonnement Claude ou ChatGPT ?
 
-Un abonnement (Claude Pro ou Max, ChatGPT Plus) **ne donne pas de clé d'API**. Il s'utilise à travers les outils de l'éditeur (Claude Code, l'app Claude, Codex), pas depuis une app comme Cairn. Avec un abonnement, il reste deux bonnes voies :
+Un abonnement (Claude Pro ou Max, ChatGPT Plus) **ne donne pas de clé d'API**, et il ne peut pas servir à faire tourner une app comme Cairn. Les conditions d'Anthropic réservent la connexion par abonnement à l'usage normal de Claude Code et des apps d'Anthropic : une autre app ne doit ni stocker ce jeton, ni faire passer ses demandes par lui ([conditions de Claude Code](https://code.claude.com/docs/en/legal-and-compliance)). Côté OpenAI, l'usage programmé de Codex passe par une clé d'API, et le fichier de connexion `auth.json` ne doit pas être partagé. Cairn n'offre donc pas cette option.
 
-- **Hermes** (ci-dessus) : c'est lui qui parle au modèle, Cairn parle à Hermes.
-- **Claude Code contre l'API de Cairn** : rien à brancher dans Cairn. Claude Code lit et écrit tes notes avec `API_TOKEN`, sur ton abonnement :
+Ton abonnement reste utile avec Cairn dans l'autre sens :
+
+- **Claude Code contre l'API de Cairn** : rien à brancher dans Cairn. C'est toi qui utilises Claude Code, normalement, sur ton Mac. Claude Code lit et écrit tes notes avec `API_TOKEN`, sur ton abonnement :
 
   ```bash
   curl -H "Authorization: Bearer $API_TOKEN" https://cairn.antoinequarroz.ch/api/notes
@@ -132,7 +137,7 @@ Rien d'autre : ni les autres notes, ni les fichiers joints, ni le coffre.
 
 **Jamais les notes chiffrées.** Sur une note avec le cadenas, l'IA est désactivée, même quand la note est déverrouillée : s'en servir enverrait le texte déchiffré au serveur, puis au fournisseur. Le bouton l'explique, et le code refuse d'envoyer la demande. Pour une note sensible, garde le cadenas et écris sans IA.
 
-Les clés d'API restent sur le serveur : le navigateur ne les voit jamais.
+Les clés d'API restent sur le serveur, chiffrées quand elles sont saisies dans Réglages : le navigateur ne les voit jamais.
 
 Le contenu d'une note et son titre sont présentés à l'IA comme un texte à travailler, pas comme des ordres. Ils sont placés entre des balises au nom tiré au hasard à chaque demande, qu'un texte collé ne peut ni deviner ni refermer. Si tu colles une page web qui contient « ignore tes instructions… », l'IA est censée ne pas obéir. C'est une précaution, pas une garantie : relis avant d'insérer. Avec Hermes, qui a des outils, la vraie barrière reste ce que tu as autorisé à l'agent.
 
@@ -163,7 +168,7 @@ Plus de détails dans [SECURITE.md](SECURITE.md).
 
    | Message | Cause probable |
    | --- | --- |
-   | `Aucune IA n'est configurée` (503) | Rien dans le `.env`, ou `AI_PROVIDER` désigne un fournisseur sans clé |
+   | `Aucune IA n'est configurée` (503) | Rien dans Réglages ni dans le `.env`, ou le fournisseur choisi n'a pas sa clé |
    | `Hermes est injoignable` (502) | Hermes arrêté, mauvais port, `API_SERVER_HOST` n'écoute pas sur le réseau Docker, ou pare-feu (ufw) qui bloque le réseau Docker. Teste Hermes depuis le VPS avec la commande `curl` de la partie « Hermes » plus haut. Attention : ce `curl` passe par 127.0.0.1 et ne détecte pas un blocage du pare-feu. Vérifie avec `sudo ufw status numbered` que la règle `allow from 172.16.0.0/12` est au-dessus du `deny 8642` |
    | `L'adresse de … est invalide` (502) | `HERMES_URL` ou `OPENAI_BASE_URL` n'est pas une adresse `http(s)://` complète, ou contient des identifiants |
    | `… a répondu 401` (502) | Clé refusée par le fournisseur |
