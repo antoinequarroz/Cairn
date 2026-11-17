@@ -92,6 +92,12 @@ Mieux vaut les avoir en tête que les découvrir :
 5. **Pas encore de passkeys.** La double authentification est un code TOTP, pas une clé physique : elle protège d'un mot de passe volé, pas d'une page d'hameçonnage qui relaierait le code en direct.
 6. **Pas d'audit externe.** Le chiffrement s'appuie sur des briques standard, mais l'ensemble n'a été relu par personne d'autre. Garde une copie de tes clés SSH ailleurs tant que Cairn est jeune.
 
+## Importer et exporter le coffre
+
+- **Import** (1Password, Bitwarden, NordPass, navigateurs) : le fichier est lu dans le navigateur, chaque élément est chiffré avec la clé du coffre, puis envoyé. Le serveur refuse tout élément qui n'est pas chiffré. Un export Bitwarden « chiffré » n'est pas lisible : il faut l'export `.json` simple. **Supprime le fichier d'export après l'import** (et vide la corbeille) : il contient tout en clair.
+- **Export chiffré** : les éléments tels que le serveur les stocke, avec les paramètres de dérivation. Il s'ouvre avec le mot de passe maître du moment de l'export, et se réimporte dans Cairn (les doublons sont ignorés). C'est une bonne copie à garder hors du VPS.
+- **Export en clair** (CSV ou JSON) : demande de retaper le mot de passe maître, même coffre ouvert. À n'utiliser que pour passer à un autre gestionnaire, et à supprimer aussitôt.
+
 ## Bonnes pratiques sur le VPS
 
 - SSH par clé uniquement, pare-feu (80, 443 et SSH), mises à jour automatiques, fail2ban.

@@ -16,6 +16,7 @@ En ligne sur **https://cairn.antoinequarroz.ch** (voir [docs/DEPLOIEMENT.md](doc
 - **Mise en forme sans connaître le Markdown** : barre d'outils (titres, gras, listes, tâches, tableaux, images…), raccourcis clavier et aide intégrée. Le menu `/` ajoute des encadrés, des blocs repliables, des commandes terminal, des liens vers d'autres notes, la date du jour et les actions de l'IA.
 - **Images, vidéos, sons, fichiers** : glisse-les ou colle-les dans une note. Les vidéos se lisent dans la page.
 - **Coffre** : identifiants, clés SSH et accès VPS, notes secrètes, générateur de mots de passe. Chiffré sur l'appareil, le serveur ne voit jamais le contenu.
+- **Import et export du coffre** (Coffre > Importer / exporter) : depuis 1Password (`.1pux` ou CSV), Bitwarden (JSON ou CSV), NordPass (CSV), l'app Mots de passe d'Apple ou un navigateur (CSV). Les fichiers sont lus et chiffrés dans le navigateur. Export chiffré (sauvegarde réimportable) ou en clair (CSV, JSON), ce dernier après confirmation du mot de passe maître.
 - **Cadenas par note** : une note sensible peut être chiffrée de bout en bout avec la clé du coffre.
 - **Accès protégé** par mot de passe, modifiable dans Réglages, avec **double authentification** (code d'une app comme 1Password, codes de secours) en option ([docs/SECURITE.md](docs/SECURITE.md)).
 - **Sauvegardes chiffrées** chaque nuit, copiées hors du VPS et gardées 30 jours, avec un script de restauration testé ([docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md), étape 5).
@@ -77,6 +78,7 @@ Le **mot de passe maître du coffre** n'est pas une variable : il se choisit dan
 | PUT | `/api/uploads/:id?offset=N` | Envoyer un morceau du fichier (8 Mo au plus) |
 | GET | `/api/files/:id` | Télécharger un fichier |
 | POST | `/api/import` | Importer un zip envoyé avec `/api/files` (`fileId`, `folderId` facultatif) : export Notion ou dossier Markdown |
+| POST | `/api/vault/items` | Ajouter au coffre un élément chiffré (`data`) ou un lot importé (`items`, 500 au plus). Tout ce qui n'est pas chiffré est refusé |
 | GET | `/api/search?q=…&folder=…` | Chercher dans les notes et les discussions (meilleurs résultats d'abord, `folder` facultatif) |
 | GET, POST | `/api/folders` | Lister les dossiers, en créer un (`name`, `parentId`, `instructions`) |
 | PATCH, DELETE | `/api/folders/:id` | Renommer, déplacer, changer les consignes ; supprimer (le contenu remonte d'un niveau) |
