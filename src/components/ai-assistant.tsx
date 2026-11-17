@@ -2,6 +2,7 @@
 
 import { AlignLeft, ArrowDownToLine, ChevronLeft, ChevronRight, Copy, Languages, Lock, MessageSquareText, Replace, Sparkles, SpellCheck, Square, TextCursorInput, WandSparkles, X } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { appendInline, fitTo, insertBelow, locate, MAX_AI_INSTRUCTION, MAX_AI_TEXT, replaceRange, type AiAction, type AiLanguage, type AiStatus, type Range } from "@/lib/ai";
 import { renderMarkdown } from "@/lib/markdown";
@@ -370,8 +371,11 @@ export function AiButton({ ai, disabled }: { ai: Ai; disabled?: boolean }) {
             <p className="p-2.5 text-[12.5px] text-ink-3">Un instant…</p>
           ) : !status.ready ? (
             <p className="p-2.5 text-[12.5px] leading-relaxed text-ink-2">
-              Aucune IA n&apos;est encore branchée. Ajoute Hermes ou une clé d&apos;API dans le fichier <code className="font-mono text-[12px]">.env</code> du serveur : tout est expliqué dans{" "}
-              <code className="font-mono text-[12px]">docs/IA.md</code>.
+              Aucune IA n&apos;est encore branchée. Connecte ton abonnement Claude ou ChatGPT, ou une clé d&apos;API, dans{" "}
+              <Link href="/settings" className="font-medium text-accent underline-offset-2 hover:underline">
+                Réglages
+              </Link>
+              .
             </p>
           ) : view === "menu" ? (
             <>

@@ -44,6 +44,11 @@ export function db() {
       size integer not null,
       created_at text not null
     );
+    -- Small app settings, one JSON value per key. Secrets inside are sealed (src/server/secret-box.ts).
+    create table if not exists settings (
+      key text primary key,
+      value text not null
+    );
     -- Files still being sent, chunk by chunk.
     create table if not exists uploads (
       id text primary key,
@@ -151,4 +156,18 @@ export function staleUploads(): string[] {
   const ids = (db().prepare("select id from uploads where created_at < ?").all(limit) as { id: string }[]).map((r) => r.id);
   if (ids.length) db().prepare("delete from uploads where created_at < ?").run(limit);
   return ids;
+}
+
+export function getSetting<T>(key: string): T | null {
+  const r = db().prepare("select value from settings where key = ?").get(key) as { value: string } | undefined;
+  if (!r) return null;
+  try {
+    return JSON.parse(r.value) as T;
+  } catch {
+    return null;
+  }
+}
+
+export function setSetting(key: string, value: unknown) {
+  db().prepare("insert into settings (key, value) values (?, ?) on conflict (key) do update set value = excluded.value").run(key, JSON.stringify(value));
 }

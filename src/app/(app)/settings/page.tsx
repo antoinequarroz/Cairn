@@ -3,6 +3,7 @@
 import { LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { AiSettings } from "@/components/ai-settings";
 import { Button, Field, inputClass, PageHeader } from "@/components/ui";
 import { api } from "@/lib/utils";
 import { lockVault } from "@/lib/vault-store";
@@ -69,6 +70,8 @@ export default function SettingsPage() {
               {busy ? "Enregistrement…" : "Changer le mot de passe"}
             </Button>
           </form>
+
+          <AiSettings />
 
           <div className="flex items-center gap-3 rounded-xl border border-line bg-surface p-5 shadow-card">
             <div className="min-w-0 flex-1">
