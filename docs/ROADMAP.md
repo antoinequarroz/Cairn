@@ -57,7 +57,7 @@ Une seule app SwiftUI pour le Mac et l'iPhone ([apps/apple](../apps/apple/README
 - [x] Première version Mac et iPhone : connexion (avec double authentification), dossiers, recherche, lecture et écriture des notes, conflits entre appareils détectés
 - [x] Coffre et notes à cadenas dans l'app, déchiffrés sur l'appareil, déverrouillage par Face ID / Touch ID
 - [x] Remplissage automatique des mots de passe (extension pour iPhone et Mac)
-- [ ] Hors ligne : copie locale des notes, synchronisation au retour du réseau
+- [x] Hors ligne dans les apps : copie des notes sur l'appareil, modifications envoyées au retour du réseau, conflits gardés en copie
 - [ ] **Mac** : raccourci global de capture, agent SSH qui sert les clés du coffre
 - [ ] **iPhone** : partage vers Cairn
 - [ ] Le code du chiffrement embarqué dans l'app, et plus servi par le VPS

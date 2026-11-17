@@ -26,8 +26,22 @@ final class VaultModel {
 
     // MARK: Loading
 
+    /// Without network, the encrypted copy kept for AutoFill serves: the vault can be read, not changed.
     func load(_ client: CairnClient) async throws {
-        let (meta, rows) = try await client.vault()
+        let meta: VaultMeta?
+        let rows: [VaultItemRow]
+        do {
+            (meta, rows) = try await client.vault()
+        } catch CairnError.network(let message) {
+            guard let snapshot = VaultCache.load() else { throw CairnError.network(message) }
+            if self.meta == nil {
+                self.meta = snapshot.meta
+                self.rows = snapshot.items
+                exists = true
+                decryptAll()
+            }
+            return
+        }
         self.meta = meta
         self.rows = rows
         exists = meta != nil

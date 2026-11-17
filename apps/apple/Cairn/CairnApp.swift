@@ -40,6 +40,8 @@ struct RootView: View {
         // Mac, when the window is closed or the app hidden).
         .onChange(of: scenePhase) { _, phase in
             if phase == .background { model.vault.lock() }
+            // Back on screen: send what was written offline and fetch what changed elsewhere.
+            if phase == .active, model.isSignedIn { model.scheduleSync(after: .milliseconds(300)) }
         }
     }
 }

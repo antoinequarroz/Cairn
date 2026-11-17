@@ -20,7 +20,15 @@ Une seule app SwiftUI pour le Mac et l'iPhone (et l'iPad), branchée sur le serv
   - iPhone : Réglages > Général > Remplissage automatique et mots de passe > activer Cairn.
   - Mac : Réglages Système > Général > Remplissage automatique et mots de passe > activer Cairn.
 
-Pas encore : le hors ligne pour les notes, l'agent SSH sur Mac. Voir [docs/ROADMAP.md](../../docs/ROADMAP.md), étape 5.
+### Hors ligne
+
+- Toutes les notes sont gardées sur l'appareil (les notes à cadenas restent chiffrées). Sans réseau, tu lis, cherches, crées, modifies, déplaces et supprimes comme d'habitude.
+- Les modifications attendent dans une file, dans l'ordre, et partent dès que le serveur répond : au retour du réseau, au retour dans l'app, ou avec « Synchroniser » dans le menu du compte. Le menu indique combien attendent.
+- Si une note a changé ailleurs entre-temps, rien n'est écrasé : la version du serveur reste, la tienne devient une note « … (conflit) » (chiffrée elle aussi pour une note à cadenas).
+- Le coffre se lit sans réseau (depuis sa copie chiffrée), mais ne se modifie qu'en ligne.
+- Se déconnecter efface la copie de l'appareil ; l'app prévient s'il reste des modifications non envoyées.
+
+Pas encore : l'agent SSH sur Mac. Voir [docs/ROADMAP.md](../../docs/ROADMAP.md), étape 5.
 
 ## Lancer l'app
 

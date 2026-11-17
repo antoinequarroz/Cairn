@@ -100,7 +100,8 @@ Les apps ouvrent le coffre comme le navigateur, sur l'appareil, avec le même ca
 - **Face ID / Touch ID** (en option, dans le menu du coffre) : la clé du coffre est rangée dans le Trousseau, réservée à cet appareil, et ne s'ouvre qu'après Face ID ou Touch ID. Si les visages ou empreintes enregistrés changent, le système l'efface et il faut retaper le mot de passe maître.
 - **Remplissage automatique** : l'app laisse une copie du coffre, toujours chiffrée, dans un dossier partagé avec l'extension. L'extension l'ouvre avec Face ID ou le mot de passe maître, sans réseau. La liste des suggestions au-dessus du clavier ne contient que les domaines et identifiants, jamais les mots de passe.
 - **Presse-papiers** : un mot de passe copié depuis l'app s'efface après 90 secondes, et sur iPhone il ne passe pas aux autres appareils.
-- **Se déconnecter** efface tout de l'appareil : clé, copie du coffre, suggestions.
+- **Hors ligne** : les notes sont copiées dans le conteneur de l'app (sur iPhone, fichier chiffré par le système tant que le téléphone n'a pas été déverrouillé depuis le démarrage). Les notes à cadenas et les modifications en attente qui les concernent restent chiffrées.
+- **Se déconnecter** efface tout de l'appareil : clé, copie des notes et du coffre, suggestions.
 
 ## Importer et exporter le coffre
 

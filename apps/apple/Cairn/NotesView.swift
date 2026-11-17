@@ -43,7 +43,8 @@ struct NotesView: View {
         }
     }
 
-    /// The server's full-text search, a moment after the last key.
+    /// The server's full-text search, a moment after the last key. Without network, the copy on
+    /// the device is searched instead.
     private func search() async {
         let q = query.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty, let client = model.client else { results = nil; return }
@@ -54,6 +55,8 @@ struct NotesView: View {
         do {
             let found = try await client.search(q, folderId: folderId)
             results = found.filter { $0.kind == "note" }
+        } catch CairnError.network {
+            if !Task.isCancelled { results = model.searchOffline(q) }
         } catch {
             if !Task.isCancelled { model.report(error) }
         }
@@ -62,6 +65,7 @@ struct NotesView: View {
 
 private struct FolderSidebar: View {
     @Environment(AppModel.self) private var model
+    @State private var confirmSignOut = false
 
     var body: some View {
         @Bindable var model = model
@@ -85,13 +89,29 @@ private struct FolderSidebar: View {
             ToolbarItem {
                 Menu {
                     Text(model.serverAddress)
-                    Button("Actualiser") { Task { await model.reload() } }
-                    Button("Se déconnecter", role: .destructive) { Task { await model.signOut() } }
+                    Text(syncStatus)
+                    Button("Synchroniser", systemImage: "arrow.triangle.2.circlepath") { Task { await model.reload() } }
+                    Button("Se déconnecter", role: .destructive) {
+                        if model.pendingCount > 0 { confirmSignOut = true } else { Task { await model.signOut() } }
+                    }
                 } label: {
-                    Label("Compte", systemImage: "person.crop.circle")
+                    Label("Compte", systemImage: model.unreachable || model.pendingCount > 0 ? "icloud.slash" : "person.crop.circle")
                 }
             }
         }
+        .confirmationDialog("Des modifications ne sont pas encore envoyées", isPresented: $confirmSignOut, titleVisibility: .visible) {
+            Button("Se déconnecter quand même", role: .destructive) { Task { await model.signOut() } }
+        } message: {
+            Text("\(model.pendingCount) modification(s) faite(s) hors ligne seront perdues. Reconnecte-toi au réseau et synchronise d'abord pour les garder.")
+        }
+    }
+
+    private var syncStatus: String {
+        if model.isSyncing { return "Synchronisation…" }
+        if model.pendingCount > 0 { return "\(model.pendingCount) modification(s) en attente de réseau" }
+        if model.unreachable { return "Serveur injoignable, copie hors ligne" }
+        if let last = model.offline.lastSync { return "Synchronisé \(last.formatted(.relative(presentation: .named)))" }
+        return "Pas encore synchronisé"
     }
 }
 
