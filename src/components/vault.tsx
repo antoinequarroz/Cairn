@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy, Eye, EyeOff, Globe, KeyRound, Lock, Pencil, Plus, Search, ShieldCheck, StickyNote, Terminal, Trash2, Wand2, X } from "lucide-react";
+import { ArrowDownUp, Check, Copy, Eye, EyeOff, Globe, KeyRound, Lock, Pencil, Plus, Search, ShieldCheck, StickyNote, Terminal, Trash2, Wand2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { decryptJson, encryptJson, generatePassword } from "@/lib/crypto";
@@ -9,6 +9,7 @@ import { api, cn, when } from "@/lib/utils";
 import { lockVault, setupVault, useVaultKey, vaultKey } from "@/lib/vault-store";
 import { Button, Field, inputClass, PageHeader } from "./ui";
 import { UnlockForm } from "./unlock-form";
+import { VaultTransfer } from "./vault-transfer";
 
 const TYPES: Record<VaultItemType, { label: string; Icon: typeof Globe }> = {
   login: { label: "Identifiant", Icon: Globe },
@@ -25,6 +26,11 @@ export function Vault() {
   const [items, setItems] = useState<VaultItem[]>([]);
   const [editing, setEditing] = useState<VaultItem | "new" | null>(null);
   const [query, setQuery] = useState("");
+  // Opened from ⌘K (/vault#import), or from the empty vault.
+  const [transfer, setTransfer] = useState(false);
+  useEffect(() => {
+    if (window.location.hash === "#import") setTransfer(true);
+  }, []);
 
   const load = useCallback(() => api<{ meta: VaultMeta | null; items: VaultItemRow[] }>("/api/vault").then((d) => setState({ meta: d.meta, rows: d.items }), (e: Error) => setError(e.message)), []);
   useEffect(() => {
@@ -90,6 +96,10 @@ export function Vault() {
   return (
     <>
       <PageHeader title="Coffre" subtitle="Mots de passe et clés, chiffrés sur cet appareil avant d'être envoyés au serveur.">
+        <Button onClick={() => setTransfer(!transfer)} aria-pressed={transfer} title="Importer depuis 1Password, Bitwarden, NordPass… ou exporter">
+          <ArrowDownUp className="size-4" />
+          <span className="max-md:hidden">Importer / exporter</span>
+        </Button>
         <Button onClick={lockVault}>
           <Lock className="size-4" />
           <span className="max-md:hidden">Verrouiller</span>
@@ -101,6 +111,7 @@ export function Vault() {
       </PageHeader>
       <div className="scroll-thin flex-1 overflow-y-auto p-7 max-md:p-4">
         <div className="mx-auto flex max-w-[760px] flex-col gap-3">
+          {transfer && <VaultTransfer meta={state.meta} items={items} onClose={() => setTransfer(false)} onImported={load} />}
           {editing === "new" && <ItemForm onSave={(d) => save(d)} onCancel={() => setEditing(null)} />}
           {items.length > 4 && (
             <div className="relative">
@@ -120,6 +131,12 @@ export function Vault() {
               <ShieldCheck className="size-7 text-accent" />
               <p className="font-display text-[24px] leading-none">Le coffre est vide</p>
               <p className="max-w-[360px] text-[13.5px] text-ink-3">Ajoute un mot de passe, ou la clé SSH de ton VPS.</p>
+              {!transfer && (
+                <Button className="mt-1" onClick={() => setTransfer(true)}>
+                  <ArrowDownUp className="size-4" />
+                  Importer depuis 1Password, Bitwarden ou NordPass
+                </Button>
+              )}
             </div>
           )}
           {items.length > 0 && !shown.length && <p className="py-10 text-center text-[13px] text-ink-3">Aucun élément ne correspond.</p>}

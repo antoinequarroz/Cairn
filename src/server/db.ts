@@ -177,6 +177,14 @@ export function saveVaultItem(id: string | undefined, data: string): VaultItemRo
   return item;
 }
 
+/** Adds many items at once, all or nothing: an import never stops halfway. */
+export function addVaultItems(blobs: string[]): number {
+  const insert = db().prepare("insert into vault_items (id, data, updated_at) values (?, ?, ?)");
+  const at = now();
+  db().transaction(() => blobs.forEach((data) => insert.run(newId(), data, at)))();
+  return blobs.length;
+}
+
 export const deleteVaultItem = (id: string) => db().prepare("delete from vault_items where id = ?").run(id).changes > 0;
 
 export function addFile(f: Omit<FileInfo, "createdAt">): FileInfo {
