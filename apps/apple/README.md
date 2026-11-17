@@ -4,7 +4,7 @@ Une seule app SwiftUI pour le Mac et l'iPhone (et l'iPad), branchée sur le serv
 
 ## Ce que fait cette première version
 
-- **Connexion** au serveur (`cairn.antoinequarroz.ch`) avec le mot de passe de Cairn, puis le code de double authentification s'il est activé. La session est gardée dans le Trousseau : pas besoin de se reconnecter à chaque lancement. Elle tombe quand le mot de passe change sur le serveur, comme sur le web.
+- **Connexion** au serveur (`cairn.postmelo.ch`) avec le mot de passe de Cairn, puis le code de double authentification s'il est activé. La session est gardée dans le Trousseau : pas besoin de se reconnecter à chaque lancement. Elle tombe quand le mot de passe change sur le serveur, comme sur le web.
 - **Dossiers et projets** dans la barre latérale, **liste des notes** du dossier choisi (avec celles des sous-dossiers).
 - **Recherche plein texte** du serveur, mots trouvés surlignés.
 - **Écrire** en Markdown, enregistrement automatique, ou **lire** la note mise en forme (titres, listes, tâches, citations, blocs de code avec bouton Copier, images).

@@ -34,7 +34,7 @@ services:
       - "443:443"
       - "443:443/udp"
     environment:
-      CAIRN_DOMAIN: ${CAIRN_DOMAIN:-cairn.antoinequarroz.ch}
+      CAIRN_DOMAIN: ${CAIRN_DOMAIN:-cairn.postmelo.ch}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data

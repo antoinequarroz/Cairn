@@ -20,7 +20,7 @@ struct LoginView: View {
             }
 
             VStack(spacing: 12) {
-                TextField("Adresse du serveur", text: $server, prompt: Text("cairn.antoinequarroz.ch"))
+                TextField("Adresse du serveur", text: $server, prompt: Text("cairn.postmelo.ch"))
                     .textContentType(.URL)
                     .autocorrectionDisabled()
                     #if os(iOS)

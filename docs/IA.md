@@ -132,7 +132,7 @@ Ton abonnement reste utile avec Cairn dans l'autre sens :
 - **Claude Code contre l'API de Cairn** : rien à brancher dans Cairn. C'est toi qui utilises Claude Code, normalement, sur ton Mac. Claude Code lit et écrit tes notes avec `API_TOKEN`, sur ton abonnement :
 
   ```bash
-  curl -H "Authorization: Bearer $API_TOKEN" https://cairn.antoinequarroz.ch/api/notes
+  curl -H "Authorization: Bearer $API_TOKEN" https://cairn.postmelo.ch/api/notes
   ```
 
   Tu peux alors lui demander « résume ma note sur X et range le résumé dans une nouvelle note ». Les routes sont dans le [README](../README.md).
@@ -170,13 +170,13 @@ Plus de détails dans [SECURITE.md](SECURITE.md).
 
    ```bash
    # Une IA est-elle branchée ?
-   curl -H "Authorization: Bearer $API_TOKEN" https://cairn.antoinequarroz.ch/api/ai
+   curl -H "Authorization: Bearer $API_TOKEN" https://cairn.postmelo.ch/api/ai
    # {"ready":true,"provider":"hermes","label":"Hermes"}
 
    # Une vraie demande : le texte doit arriver petit à petit (-N)
    curl -N -H "Authorization: Bearer $API_TOKEN" -H "Content-Type: application/json" \
      -d '{"action":"summarize","text":"Cairn est une app de notes en Markdown, avec un coffre chiffré.","title":"Test"}' \
-     https://cairn.antoinequarroz.ch/api/ai
+     https://cairn.postmelo.ch/api/ai
    ```
 
    Les actions : `summarize`, `rewrite`, `fix`, `continue`, `translate` (avec `"language"`: `fr`, `en`, `de`, `it` ou `es`) et `custom` (avec `"instruction"`).
