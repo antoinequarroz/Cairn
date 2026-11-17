@@ -133,6 +133,12 @@ public struct VaultItem: Identifiable, Hashable, Sendable {
     public let id: String
     public var updatedAt: String
     public var data: VaultItemData
+
+    public init(id: String, updatedAt: String, data: VaultItemData) {
+        self.id = id
+        self.updatedAt = updatedAt
+        self.data = data
+    }
 }
 
 public enum VaultError: LocalizedError, Equatable {
