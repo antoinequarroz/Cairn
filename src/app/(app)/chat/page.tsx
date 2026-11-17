@@ -1,6 +1,6 @@
 "use client";
 
-import { MessagesSquare, Plus } from "lucide-react";
+import { BookOpenText, MessagesSquare, Plus } from "lucide-react";
 import Link from "next/link";
 import { Button, PageHeader } from "@/components/ui";
 import { folderPath, useNotes } from "@/lib/notes-store";
@@ -11,6 +11,10 @@ export default function ChatsPage() {
   return (
     <>
       <PageHeader title="Discussions" subtitle={conversations.length ? "Avec l'IA, rangées dans tes projets" : "Discute avec l'IA, avec tes notes en contexte."}>
+        <Button variant="secondary" onClick={() => newConversation(null, undefined, { folderId: null })} title="Poser une question à l'IA sur tout ce que tu as noté">
+          <BookOpenText className="size-4" />
+          <span className="max-md:hidden">Interroger mes notes</span>
+        </Button>
         <Button variant="primary" onClick={() => newConversation()}>
           <Plus className="size-4" strokeWidth={2.4} />
           <span className="max-md:hidden">Nouvelle discussion</span>
@@ -33,10 +37,16 @@ export default function ChatsPage() {
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
           <p className="font-display text-[26px] leading-none">Aucune discussion pour l&apos;instant</p>
           <p className="max-w-[400px] text-[13.5px] text-ink-3">Une discussion se range dans un projet comme une note. L&apos;IA y lit les consignes du projet et les notes que tu épingles.</p>
-          <Button variant="primary" className="mt-2" onClick={() => newConversation()}>
-            <Plus className="size-4" strokeWidth={2.4} />
-            Nouvelle discussion
-          </Button>
+          <div className="mt-2 flex flex-wrap justify-center gap-2">
+            <Button variant="primary" onClick={() => newConversation()}>
+              <Plus className="size-4" strokeWidth={2.4} />
+              Nouvelle discussion
+            </Button>
+            <Button variant="secondary" onClick={() => newConversation(null, undefined, { folderId: null })}>
+              <BookOpenText className="size-4" />
+              Interroger mes notes
+            </Button>
+          </div>
         </div>
       )}
     </>

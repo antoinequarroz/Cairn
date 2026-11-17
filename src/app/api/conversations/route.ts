@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createConversation, listConversations } from "@/server/db";
-import { body, fail, folderRef, MAX_TITLE, noteIds, text } from "@/server/http";
+import { body, fail, folderRef, MAX_TITLE, noteIds, notesSearchRef, text } from "@/server/http";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +13,7 @@ export async function POST(req: Request) {
   const title = text(b.title, MAX_TITLE);
   const folderId = folderRef(b.folderId);
   const ids = noteIds(b.contextNoteIds);
-  if (title === null || folderId === false || ids === null) return fail("Discussion invalide");
-  return NextResponse.json({ conversation: createConversation({ title, folderId, contextNoteIds: ids }) }, { status: 201 });
+  const notesSearch = notesSearchRef(b.notesSearch);
+  if (title === null || folderId === false || ids === null || notesSearch === false) return fail("Discussion invalide");
+  return NextResponse.json({ conversation: createConversation({ title, folderId, contextNoteIds: ids, notesSearch }) }, { status: 201 });
 }

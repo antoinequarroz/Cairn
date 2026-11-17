@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isOwnFile, codeLabel } from "./markdown";
+import { isNoteLink, isOwnFile, codeLabel } from "./markdown";
 
 describe("Markdown : médias d'une réponse d'IA", () => {
   const origin = "https://cairn.exemple.ch";
@@ -38,5 +38,16 @@ describe("codeLabel", () => {
     expect(codeLabel("language-sh")).toBe("Terminal");
     expect(codeLabel("language-python")).toBe("python");
     expect(codeLabel("")).toBe("Code");
+  });
+});
+
+describe("liens vers une note", () => {
+  const origin = "https://cairn.exemple.ch";
+  it("reconnaît un lien vers une note de l'app, et seulement ça", () => {
+    expect(isNoteLink("/notes/abc_1-2", origin)).toBe(true);
+    expect(isNoteLink("https://cairn.exemple.ch/notes/abc", origin)).toBe(true);
+    expect(isNoteLink("//evil.example/notes/abc", origin)).toBe(false);
+    expect(isNoteLink("/api/files/abc", origin)).toBe(false);
+    expect(isNoteLink("/notes/abc/../../api/vault", origin)).toBe(false);
   });
 });

@@ -22,6 +22,7 @@ En ligne sur **https://cairn.antoinequarroz.ch** (voir [docs/DEPLOIEMENT.md](doc
 - **Installable** comme une app sur Mac (Safari, « Ajouter au Dock ») et sur iPhone (« Sur l'écran d'accueil »).
 - **Projets et dossiers** pour ranger notes et discussions, par glisser-déposer dans la barre latérale.
 - **Discussions avec l'IA**, rangées dans les projets : consignes par projet, notes épinglées en contexte, réponses enregistrées sur le serveur même si l'onglet se ferme.
+- **Interroger toutes ses notes** : « qu'est-ce que j'ai noté sur Caddy ? ». À chaque message, l'IA cherche dans toutes les notes (ou un seul dossier) avec l'index plein texte, répond à partir de ce qu'elle trouve et cite les notes en lien. Une note chiffrée n'est jamais cherchée ni envoyée.
 - **API** pour Hermes et Claude Code, qui peuvent lire et écrire des notes.
 - **Demander à l'IA** dans l'éditeur : résumer, améliorer, corriger, continuer, traduire, ou une consigne libre, sur la sélection ou sur toute la note. La réponse s'affiche à part, tu choisis ensuite de l'insérer ou non. Branché sur Hermes, l'API d'Anthropic ou celle d'OpenAI ([docs/IA.md](docs/IA.md)). Jamais sur une note chiffrée.
 

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import type { Conversation, ConversationSummary, Folder, Note, NoteSummary } from "./types";
+import type { Conversation, ConversationSummary, Folder, Note, NotesSearch, NoteSummary } from "./types";
 import { api } from "./utils";
 
 /** What can be filed in a folder. */
@@ -20,8 +20,8 @@ type Store = {
   reload: () => Promise<void>;
   /** Creates an empty note, in a folder or at the root, and opens it. */
   newNote: (folderId?: string | null) => Promise<void>;
-  /** Creates a discussion with the AI and opens it. */
-  newConversation: (folderId?: string | null, contextNoteIds?: string[]) => Promise<void>;
+  /** Creates a discussion with the AI and opens it. `notesSearch`: the AI searches the notes (one folder's, or all) with each message. */
+  newConversation: (folderId?: string | null, contextNoteIds?: string[], notesSearch?: NotesSearch) => Promise<void>;
   /** Creates a folder and opens it, its name ready to be typed. */
   newFolder: (parentId?: string | null) => Promise<void>;
   /** Mirrors a saved note in the sidebar without a round trip. */
@@ -110,9 +110,9 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
           toast.error((e as Error).message);
         }
       },
-      newConversation: async (folderId = null, contextNoteIds) => {
+      newConversation: async (folderId = null, contextNoteIds, notesSearch) => {
         try {
-          const { conversation } = await api<{ conversation: Conversation }>("/api/conversations", { method: "POST", json: { folderId, contextNoteIds } });
+          const { conversation } = await api<{ conversation: Conversation }>("/api/conversations", { method: "POST", json: { folderId, contextNoteIds, notesSearch } });
           touchConversation(conversation);
           router.push(`/chat/${conversation.id}`);
         } catch (e) {
