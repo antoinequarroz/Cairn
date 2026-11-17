@@ -58,6 +58,15 @@ public struct SearchResult: Codable, Identifiable, Hashable, Sendable {
     public var snippet: String
     public var encrypted: Bool
     public var folderId: String?
+
+    public init(kind: String, id: String, title: String, snippet: String, encrypted: Bool, folderId: String?) {
+        self.kind = kind
+        self.id = id
+        self.title = title
+        self.snippet = snippet
+        self.encrypted = encrypted
+        self.folderId = folderId
+    }
 }
 
 /// A folder and the folders inside it, for an outline in the sidebar.

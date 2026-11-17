@@ -85,10 +85,11 @@ const sha256 = async (value: string) => Buffer.from(await crypto.subtle.digest("
  * Step 1. Returns the address to send the browser to, and the value of the pending cookie.
  * `maxAge` (seconds) asks for a recent sign-in: older sessions must type their password again.
  */
-export async function startSignIn(options: { maxAge?: number; next?: string } = { maxAge: COMPTE_MAX_AGE }, s = settings()) {
+export async function startSignIn(options: { maxAge?: number; next?: string; app?: string } = { maxAge: COMPTE_MAX_AGE }, s = settings()) {
   if (!s) throw new Error("Connexion par compte non configurée");
   const meta = await endpoints(s);
-  const pending = { state: random(), nonce: random(), verifier: random(48), next: options.next ?? "" };
+  // `app`: started from the Mac or iPhone app (see compte-app.ts).
+  const pending = { state: random(), nonce: random(), verifier: random(48), next: options.next ?? "", ...(options.app ? { app: options.app } : {}) };
   const url = new URL(meta.authorization_endpoint);
   url.search = new URLSearchParams({
     response_type: "code",

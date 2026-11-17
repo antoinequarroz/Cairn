@@ -4,7 +4,7 @@ Une seule app SwiftUI pour le Mac et l'iPhone (et l'iPad), branchée sur le serv
 
 ## Ce que fait cette première version
 
-- **Connexion** au serveur (`cairn.postmelo.ch`) avec le mot de passe de Cairn, puis le code de double authentification s'il est activé. La session est gardée dans le Trousseau : pas besoin de se reconnecter à chaque lancement. Elle tombe quand le mot de passe change sur le serveur, comme sur le web.
+- **Connexion** au serveur (`cairn.postmelo.ch`) avec le **Compte Postmelo** (« Continuer avec mon Compte Postmelo », quand le serveur l'a activé) ou le mot de passe de Cairn, puis le code de double authentification s'il est demandé. La session est gardée dans le Trousseau : pas besoin de se reconnecter à chaque lancement. Elle tombe quand le mot de passe change sur le serveur, comme sur le web.
 - **Dossiers et projets** dans la barre latérale, **liste des notes** du dossier choisi (avec celles des sous-dossiers).
 - **Recherche plein texte** du serveur, mots trouvés surlignés.
 - **Écrire** en Markdown, enregistrement automatique, ou **lire** la note mise en forme (titres, listes, tâches, citations, blocs de code avec bouton Copier, images).
@@ -20,7 +20,15 @@ Une seule app SwiftUI pour le Mac et l'iPhone (et l'iPad), branchée sur le serv
   - iPhone : Réglages > Général > Remplissage automatique et mots de passe > activer Cairn.
   - Mac : Réglages Système > Général > Remplissage automatique et mots de passe > activer Cairn.
 
-Pas encore : le hors ligne pour les notes, l'agent SSH sur Mac. Voir [docs/ROADMAP.md](../../docs/ROADMAP.md), étape 5.
+### Hors ligne
+
+- Toutes les notes sont gardées sur l'appareil (les notes à cadenas restent chiffrées). Sans réseau, tu lis, cherches, crées, modifies, déplaces et supprimes comme d'habitude.
+- Les modifications attendent dans une file, dans l'ordre, et partent dès que le serveur répond : au retour du réseau, au retour dans l'app, ou avec « Synchroniser » dans le menu du compte. Le menu indique combien attendent.
+- Si une note a changé ailleurs entre-temps, rien n'est écrasé : la version du serveur reste, la tienne devient une note « … (conflit) » (chiffrée elle aussi pour une note à cadenas).
+- Le coffre se lit sans réseau (depuis sa copie chiffrée), mais ne se modifie qu'en ligne.
+- Se déconnecter efface la copie de l'appareil ; l'app prévient s'il reste des modifications non envoyées.
+
+Pas encore : l'agent SSH sur Mac. Voir [docs/ROADMAP.md](../../docs/ROADMAP.md), étape 5.
 
 ## Lancer l'app
 
@@ -29,7 +37,7 @@ Il faut un Mac avec **Xcode 16** ou plus récent.
 1. Ouvrir `apps/apple/Cairn.xcodeproj`.
 2. Cibles **Cairn** et **CairnAutoFill** > *Signing & Capabilities* : choisir ton équipe (*Team*). Le **compte Apple Developer payant** est nécessaire : le remplissage automatique, le groupe d'apps et le Trousseau partagé ne sont pas ouverts aux comptes gratuits. Xcode crée les identifiants (`ch.antoinequarroz.cairn`, `ch.antoinequarroz.cairn.autofill`, `group.ch.antoinequarroz.cairn`) tout seul en signature automatique.
 3. Choisir la destination **My Mac** ou ton iPhone, puis ⌘R.
-4. Dans l'app : l'adresse du serveur, le mot de passe de Cairn, puis le code si la double authentification est activée.
+4. Dans l'app : l'adresse du serveur, puis « Continuer avec mon Compte Postmelo » ou le mot de passe de Cairn, et le code si la double authentification le demande.
 
 En ligne de commande, sans signer :
 

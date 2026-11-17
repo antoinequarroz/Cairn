@@ -2,37 +2,36 @@ import CairnKit
 import SwiftUI
 
 /// One note: the Markdown as typed, or read with its formatting. Saves by itself a moment after the
-/// last change, like the web app. Each save says which version it started from: when the note was
-/// changed on another device meanwhile, nothing is overwritten and the app asks which one to keep.
+/// last change, on the device first, then on the server as soon as it can be reached (see
+/// AppModel). When the note changed on another device meanwhile, nothing is overwritten: the
+/// version written here becomes a copy.
 ///
 /// A locked note (cadenas) is opened with the vault key, on the device, and encrypted again before
-/// each save. Its title stays readable, as on the web.
+/// each save: the copy on the device and the changes waiting to be sent stay encrypted. Its title
+/// stays readable, as on the web.
 struct NoteEditorView: View {
     @Environment(AppModel.self) private var model
     let noteID: String
 
-    /// The server's version (for a locked note, `content` is the encrypted blob).
+    /// The version opened (for a locked note, `content` is the encrypted blob).
     @State private var note: Note?
-    /// The readable title and text of that version: what the fields are compared to.
+    /// The readable title and text last saved: what the fields are compared to.
     @State private var baseTitle = ""
     @State private var baseContent = ""
     @State private var title = ""
     @State private var content = ""
     @State private var opened = false
     @State private var reading = false
-    @State private var saveState = SaveState.saved
-    @State private var conflict: Note?
+    @State private var dirty = false
     @State private var loadError: String?
     @State private var saveTask: Task<Void, Never>?
     @State private var handlerID = UUID().uuidString
-
-    enum SaveState { case saved, pending, saving, failed }
 
     var body: some View {
         Group {
             if opened {
                 editor
-            } else if let note, note.encrypted {
+            } else if let note, note.encrypted, loadError == nil {
                 VaultUnlockView(message: "« \(note.title.isEmpty ? "Sans titre" : note.title) » est chiffrée de bout en bout avec la clé du coffre.")
             } else if let loadError {
                 ContentUnavailableView("Impossible d'ouvrir la note", systemImage: "exclamationmark.triangle", description: Text(loadError))
@@ -52,13 +51,6 @@ struct NoteEditorView: View {
         .onDisappear {
             flush()
             model.vault.willLock[handlerID] = nil
-        }
-        .alert("Modifiée ailleurs", isPresented: Binding(get: { conflict != nil }, set: { if !$0 { conflict = nil } })) {
-            Button("Garder ma version") { keepMine() }
-            Button("Prendre celle du serveur") { takeServer() }
-            Button("Annuler", role: .cancel) {}
-        } message: {
-            Text("Cette note a changé sur un autre appareil depuis que tu l'as ouverte. Quelle version garder ?")
         }
     }
 
@@ -111,25 +103,25 @@ struct NoteEditorView: View {
     }
 
     @ViewBuilder private var saveLabel: some View {
-        switch saveState {
-        case .saved: Text("Enregistré").foregroundStyle(.secondary).font(.caption)
-        case .pending, .saving: Text("Enregistrement…").foregroundStyle(.secondary).font(.caption)
-        case .failed:
-            Button("Réessayer") { Task { await save(force: false) } }.font(.caption).foregroundStyle(.red)
+        if dirty || (model.isWaiting(noteID) && model.isSyncing) {
+            Text("Enregistrement…").foregroundStyle(.secondary).font(.caption)
+        } else if model.isWaiting(noteID) {
+            Label("Enregistré sur l'appareil, envoi dès que possible", systemImage: "icloud.slash")
+                .labelStyle(.titleAndIcon).foregroundStyle(.secondary).font(.caption)
+        } else {
+            Text("Enregistré").foregroundStyle(.secondary).font(.caption)
         }
     }
 
     // MARK: Loading and saving
 
     private func load() async {
-        guard let client = model.client else { return }
         do {
-            let n = try await client.note(noteID)
+            let n = try await model.openNote(noteID)
             note = n
             apply(n)
         } catch {
             loadError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-            if case CairnError.unauthorized = error { model.report(error) }
         }
     }
 
@@ -151,89 +143,36 @@ struct NoteEditorView: View {
         baseContent = text
         title = n.title
         content = text
+        dirty = false
         opened = true
-        saveState = .saved
     }
 
     private var isDirty: Bool { opened && (title != baseTitle || content != baseContent) }
 
-    /// What goes to the server: the text, or for a locked note its encrypted form.
-    private func stored(_ text: String) throws -> String {
-        note?.encrypted == true ? try model.vault.encryptNote(text) : text
-    }
-
     private func scheduleSave() {
         guard isDirty else { return }
-        saveState = .pending
+        dirty = true
         saveTask?.cancel()
         saveTask = Task {
             try? await Task.sleep(for: .milliseconds(800))
             guard !Task.isCancelled else { return }
-            await save(force: false)
+            flush()
         }
     }
 
-    /// Leaving the note, or the vault about to lock: whatever is still waiting is sent now, without
-    /// this view (it may be going away). If the note changed elsewhere meanwhile, the text is kept
-    /// in a copy rather than lost, encrypted too when the note was.
+    /// Saves now: on leaving the note, when the vault is about to lock, or after a pause in typing.
     private func flush() {
-        guard isDirty, let client = model.client, let base = note else { return }
         saveTask?.cancel()
-        let (sentTitle, sentContent, model) = (title, content, model)
-        let blob: String
-        do { blob = try stored(sentContent) } catch { model.report(error); return }
-        baseTitle = sentTitle
-        baseContent = sentContent
-        Task { @MainActor in
-            do {
-                model.didSave(try await client.updateNote(base.id, title: sentTitle, content: blob, ifUpdatedAt: base.updatedAt))
-            } catch CairnError.conflict {
-                let name = sentTitle.isEmpty ? "Sans titre" : sentTitle
-                // A copy of a locked note is created empty, then gets the encrypted text: nothing readable is sent.
-                guard var copy = try? await client.createNote(title: "\(name) (conflit)", content: base.encrypted ? "" : sentContent, folderId: base.folderId) else { return }
-                if base.encrypted, let locked = try? await client.lockNote(copy.id, title: copy.title, blob: blob) { copy = locked }
-                model.didSave(copy)
-                model.errorMessage = "« \(name) » a changé sur un autre appareil : ta version est gardée dans une copie."
-            } catch {
-                model.report(error)
-            }
-        }
-    }
-
-    /// `force`: save even with no change (after "Garder ma version", on top of the server's version).
-    private func save(force: Bool) async {
-        guard let client = model.client, let base = note, isDirty || force else { return }
-        saveState = .saving
-        let sentTitle = title
-        let sentContent = content
+        guard isDirty else { dirty = false; return }
         do {
-            let saved = try await client.updateNote(base.id, title: sentTitle, content: try stored(sentContent), ifUpdatedAt: base.updatedAt)
-            note = saved
-            baseTitle = sentTitle
-            baseContent = sentContent
-            model.didSave(saved)
-            // Typed again while it was saving: the next save starts from this version.
-            if title != sentTitle || content != sentContent { scheduleSave() } else { saveState = .saved }
-        } catch let CairnError.conflict(server) {
-            saveState = .failed
-            conflict = server
+            // Never save readable text for a note meant to be encrypted.
+            let stored = note?.encrypted == true ? try model.vault.encryptNote(content) : content
+            model.saveNote(noteID, title: title, content: stored)
+            baseTitle = title
+            baseContent = content
+            dirty = false
         } catch {
-            saveState = .failed
             model.report(error)
         }
-    }
-
-    private func keepMine() {
-        guard let server = conflict else { return }
-        conflict = nil
-        note = server
-        Task { await save(force: true) }
-    }
-
-    private func takeServer() {
-        guard let server = conflict else { return }
-        conflict = nil
-        apply(server)
-        model.didSave(server)
     }
 }

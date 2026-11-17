@@ -63,7 +63,7 @@ Avec `COMPTE_URL`, `COMPTE_CLIENT_SECRET` et `APP_URL`, la page de connexion pro
 - **La double authentification n'est jamais sautée.** Si le compte a la sienne, elle a déjà été passée. Sinon, et si elle est activée ici, Cairn demande son propre code après le retour du compte.
 - **Le coffre ne change pas.** Il reste fermé jusqu'au mot de passe maître, que ni Cairn ni le compte ne connaissent.
 - Se déconnecter de Cairn ne ferme pas la session du compte.
-- Les apps Mac et iPhone gardent le mot de passe de Cairn.
+- **Dans les apps Mac et iPhone**, le même bouton ouvre la page du compte dans la feuille de connexion du système. Au retour, le serveur ne renvoie pas la session dans l'adresse `cairn://` (une autre app pourrait la capter) : il garde le résultat 2 minutes sous un code de passage à usage unique, que l'app échange avec un secret qu'elle seule détient (même principe que PKCE). Le code de Cairn est demandé dans l'app quand le compte n'a pas de double authentification. Le mot de passe de Cairn y reste possible.
 
 Activer le Compte Postmelo ajoute une porte : la sécurité des notes dépend alors aussi de celle du compte. Active sa double authentification.
 
@@ -117,7 +117,8 @@ Les apps ouvrent le coffre comme le navigateur, sur l'appareil, avec le même ca
 - **Face ID / Touch ID** (en option, dans le menu du coffre) : la clé du coffre est rangée dans le Trousseau, réservée à cet appareil, et ne s'ouvre qu'après Face ID ou Touch ID. Si les visages ou empreintes enregistrés changent, le système l'efface et il faut retaper le mot de passe maître.
 - **Remplissage automatique** : l'app laisse une copie du coffre, toujours chiffrée, dans un dossier partagé avec l'extension. L'extension l'ouvre avec Face ID ou le mot de passe maître, sans réseau. La liste des suggestions au-dessus du clavier ne contient que les domaines et identifiants, jamais les mots de passe.
 - **Presse-papiers** : un mot de passe copié depuis l'app s'efface après 90 secondes, et sur iPhone il ne passe pas aux autres appareils.
-- **Se déconnecter** efface tout de l'appareil : clé, copie du coffre, suggestions.
+- **Hors ligne** : les notes sont copiées dans le conteneur de l'app (sur iPhone, fichier chiffré par le système tant que le téléphone n'a pas été déverrouillé depuis le démarrage). Les notes à cadenas et les modifications en attente qui les concernent restent chiffrées.
+- **Se déconnecter** efface tout de l'appareil : clé, copie des notes et du coffre, suggestions.
 
 ## Importer et exporter le coffre
 

@@ -1,8 +1,14 @@
+import AuthenticationServices
 import CairnKit
 import SwiftUI
 
 struct LoginView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.webAuthenticationSession) private var webAuthenticationSession
+    /// The server offers "Continuer avec mon Compte Postmelo".
+    @State private var compteOffered = false
+    /// Back from the Compte Postmelo, Cairn's own code still to give.
+    @State private var compte: (handoff: String, verifier: String)?
     @State private var server = ""
     @State private var password = ""
     @State private var code = ""
@@ -27,9 +33,11 @@ struct LoginView: View {
                     .textInputAutocapitalization(.never)
                     .keyboardType(.URL)
                     #endif
-                SecureField("Mot de passe", text: $password)
-                    .textContentType(.password)
-                    .onSubmit(submit)
+                if compte == nil {
+                    SecureField("Mot de passe de Cairn", text: $password)
+                        .textContentType(.password)
+                        .onSubmit(submit)
+                }
                 if needsCode {
                     TextField("Code à 6 chiffres ou code de secours", text: $code)
                         .textContentType(.oneTimeCode)
@@ -55,8 +63,27 @@ struct LoginView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .disabled(working || server.isEmpty || password.isEmpty || (needsCode && code.isEmpty))
+            .disabled(working || server.isEmpty || (compte == nil && password.isEmpty) || (needsCode && code.isEmpty))
             .keyboardShortcut(.defaultAction)
+
+            if compte != nil {
+                Button("Annuler") { reset() }.buttonStyle(.borderless)
+            } else if compteOffered {
+                VStack(spacing: 12) {
+                    HStack {
+                        VStack { Divider() }
+                        Text("ou").font(.caption).foregroundStyle(.secondary)
+                        VStack { Divider() }
+                    }
+                    Button(action: signInWithCompte) {
+                        Label("Continuer avec mon Compte Postmelo", systemImage: "person.crop.circle")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .disabled(working || server.isEmpty)
+                }
+            }
         }
         .padding(32)
         .frame(maxWidth: 420)
@@ -65,16 +92,67 @@ struct LoginView: View {
             if server.isEmpty { server = model.serverAddress.replacingOccurrences(of: "https://", with: "") }
             error = model.errorMessage
         }
+        .task(id: server) {
+            // Asks the server once the address stops changing.
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            let offered = await model.compteEnabled(server: server)
+            if !Task.isCancelled { compteOffered = offered }
+        }
     }
 
-    private func submit() {
-        guard !working, !server.isEmpty, !password.isEmpty else { return }
+    private func reset() {
+        compte = nil
+        needsCode = false
+        code = ""
+        error = nil
+    }
+
+    /// Opens the Compte Postmelo in the system's sign-in sheet, then trades what comes back for a session.
+    private func signInWithCompte() {
+        guard !working, let url = CairnClient.serverURL(from: server) else { return }
+        let signIn = CompteSignIn()
+        guard let start = CairnClient(baseURL: url).compteStartURL(challenge: signIn.challenge) else { return }
         working = true
         error = nil
         Task {
             defer { working = false }
             do {
-                try await model.signIn(server: server, password: password, code: needsCode ? code : nil)
+                let back = try await webAuthenticationSession.authenticate(using: start, callbackURLScheme: CompteSignIn.callbackScheme, preferredBrowserSession: .shared)
+                switch CompteSignIn.read(back) {
+                case let .refused(message):
+                    error = message
+                case let .handoff(handoff):
+                    do {
+                        try await model.finishCompte(server: server, handoff: handoff, verifier: signIn.verifier, code: nil)
+                        model.errorMessage = nil
+                    } catch CairnError.needCode {
+                        // The account has no second factor of its own: Cairn's code, as on the web.
+                        compte = (handoff, signIn.verifier)
+                        needsCode = true
+                        codeFocused = true
+                    }
+                }
+            } catch let e as ASWebAuthenticationSessionError where e.code == .canceledLogin {
+                // Closed by the person: nothing to say.
+            } catch {
+                self.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            }
+        }
+    }
+
+    private func submit() {
+        guard !working, !server.isEmpty, compte != nil || !password.isEmpty else { return }
+        working = true
+        error = nil
+        Task {
+            defer { working = false }
+            do {
+                if let compte {
+                    try await model.finishCompte(server: server, handoff: compte.handoff, verifier: compte.verifier, code: code)
+                } else {
+                    try await model.signIn(server: server, password: password, code: needsCode ? code : nil)
+                }
                 model.errorMessage = nil
             } catch let CairnError.needCode(message) {
                 needsCode = true
