@@ -11,6 +11,7 @@ En ligne sur **https://cairn.antoinequarroz.ch** (voir [docs/DEPLOIEMENT.md](doc
 ## Ce qui marche aujourd'hui
 
 - **Notes en Markdown** : écriture, aperçu ou les deux côte à côte, enregistrement automatique, recherche ⌘K.
+- **Mise en forme sans connaître le Markdown** : barre d'outils (titres, gras, listes, tâches, tableaux, images…), raccourcis clavier, menu `/` en début de ligne et aide intégrée.
 - **Images, vidéos, sons, fichiers** : glisse-les ou colle-les dans une note. Les vidéos se lisent dans la page.
 - **Coffre** : identifiants, clés SSH et accès VPS, notes secrètes, générateur de mots de passe. Chiffré sur l'appareil, le serveur ne voit jamais le contenu.
 - **Cadenas par note** : une note sensible peut être chiffrée de bout en bout avec la clé du coffre.

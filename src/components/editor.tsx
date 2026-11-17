@@ -15,6 +15,7 @@ import { useVaultKey, vaultKey } from "@/lib/vault-store";
 import { AiButton, AiPanel, useAi, type AiTarget } from "./ai-assistant";
 import { Button } from "./ui";
 import { FolderSelect } from "./folder-select";
+import { FormatToolbar, SlashMenu, useFormatting } from "./format-toolbar";
 import { UnlockForm } from "./unlock-form";
 
 type Mode = "write" | "split" | "preview";
@@ -152,6 +153,8 @@ export function Editor({ id }: { id: string }) {
     [change],
   );
   const ai = useAi(aiTarget, !!note?.encrypted);
+  const pickFile = useCallback(() => fileInput.current?.click(), []);
+  const fmt = useFormatting(area, pickFile);
 
   const upload = async (files: File[]) => {
     for (const file of files) {
@@ -276,39 +279,46 @@ export function Editor({ id }: { id: string }) {
           </div>
         </div>
       ) : (
-        <div className={cn("grid min-h-0 flex-1", mode === "split" ? "grid-cols-2" : "grid-cols-1")}>
-          {mode !== "preview" && (
-            <textarea
-              ref={area}
-              value={content ?? ""}
-              onChange={(e) => {
-                setContent(e.target.value);
-                change({ content: e.target.value });
-              }}
-              onPaste={(e) => {
-                const files = [...e.clipboardData.files];
-                if (files.length) {
+        <>
+          {mode !== "preview" && <FormatToolbar fmt={fmt} />}
+          <div className={cn("relative grid min-h-0 flex-1", mode === "split" ? "grid-cols-2" : "grid-cols-1")}>
+            {mode !== "preview" && (
+              <textarea
+                ref={area}
+                value={content ?? ""}
+                onChange={(e) => {
+                  setContent(e.target.value);
+                  change({ content: e.target.value });
+                }}
+                onInput={fmt.onInput}
+                onKeyDown={fmt.onKeyDown}
+                onBlur={fmt.close}
+                onPaste={(e) => {
+                  const files = [...e.clipboardData.files];
+                  if (files.length) {
+                    e.preventDefault();
+                    upload(files);
+                  }
+                }}
+                onDragOver={(e) => e.dataTransfer.types.includes("Files") && e.preventDefault()}
+                onDrop={(e) => {
+                  if (!e.dataTransfer.files.length) return;
                   e.preventDefault();
-                  upload(files);
-                }
-              }}
-              onDragOver={(e) => e.dataTransfer.types.includes("Files") && e.preventDefault()}
-              onDrop={(e) => {
-                if (!e.dataTransfer.files.length) return;
-                e.preventDefault();
-                upload([...e.dataTransfer.files]);
-              }}
-              spellCheck
-              placeholder={"Écris en Markdown…\n\n# Titre\n- une liste\n**gras**, `code`, [lien](https://…)\n\nGlisse une image, une vidéo ou un fichier ici."}
-              className={cn("scroll-thin min-h-0 resize-none bg-transparent px-7 py-3 font-mono text-[13.5px] leading-relaxed outline-none placeholder:text-ink-3 max-md:px-4", mode === "split" && "border-r border-line")}
-            />
-          )}
-          {mode !== "write" && (
-            <div className="scroll-thin min-h-0 overflow-y-auto px-7 py-3 max-md:px-4">
-              {html ? <article className="prose-cairn" dangerouslySetInnerHTML={{ __html: html }} /> : <p className="text-[13.5px] text-ink-3">L&apos;aperçu apparaît ici.</p>}
-            </div>
-          )}
-        </div>
+                  upload([...e.dataTransfer.files]);
+                }}
+                spellCheck
+                placeholder={"Écris ici…\n\nTape / pour insérer un titre, une liste, un tableau ou une image,\nou utilise la barre au-dessus pour mettre en forme.\n\nGlisse une image, une vidéo ou un fichier ici."}
+                className={cn("scroll-thin min-h-0 resize-none bg-transparent px-7 py-3 font-mono text-[13.5px] leading-relaxed outline-none placeholder:text-ink-3 max-md:px-4", mode === "split" && "border-r border-line")}
+              />
+            )}
+            {mode !== "write" && (
+              <div className="scroll-thin min-h-0 overflow-y-auto px-7 py-3 max-md:px-4">
+                {html ? <article className="prose-cairn" dangerouslySetInnerHTML={{ __html: html }} /> : <p className="text-[13.5px] text-ink-3">L&apos;aperçu apparaît ici.</p>}
+              </div>
+            )}
+            {mode !== "preview" && <SlashMenu fmt={fmt} />}
+          </div>
+        </>
       )}
       {!locked && <AiPanel ai={ai} />}
     </div>

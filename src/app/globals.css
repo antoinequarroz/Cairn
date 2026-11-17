@@ -145,6 +145,18 @@ body::before {
   animation: rise 320ms var(--ease-out) both;
 }
 
+/* Small menus that open in place (the "/" menu, the formatting help). */
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+.pop-in {
+  transform-origin: top left;
+  animation: pop 140ms var(--ease-out) both;
+}
+
 /* Base UI dialog motion */
 .dialog-backdrop {
   transition: opacity 200ms var(--ease-out);
@@ -176,7 +188,8 @@ body::before {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rise {
+  .rise,
+  .pop-in {
     animation: none;
   }
   .dialog-popup[data-starting-style],
