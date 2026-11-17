@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { setSessionCookie } from "@/server/cookie";
 import { body } from "@/server/http";
-import { LAMIO_OK_COOKIE, lamioConfig, validLamioPass } from "@/server/lamio";
+import { COMPTE_OK_COOKIE, settings, validComptePass } from "@/server/compte";
 import { checkPassword, passwordRequired } from "@/server/password";
 import { isLocked, LOCKED_MESSAGE, recordFailure, recordSuccess } from "@/server/throttle";
 import { checkSecondFactor, twoFactorRequired } from "@/server/two-factor";
@@ -14,16 +14,16 @@ export const dynamic = "force-dynamic";
  * The page sends the password again with the code: nothing is half signed in on the server.
  * Wrong passwords and wrong codes count together toward the lock (see throttle.ts).
  *
- * Coming back from "Se connecter avec Lamio" with two-factor on, the browser holds a short-lived
- * pass in place of the password (see lamio.ts): only the code is sent.
+ * Coming back from "Continuer avec mon Compte Postmelo" with two-factor on here and none on the
+ * account, the browser holds a short-lived pass in place of the password (see compte.ts): only the code is sent.
  */
 export async function POST(req: Request) {
   const { password: given, code } = await body(req);
   if (!passwordRequired()) return NextResponse.json({ ok: true });
   if (isLocked()) return NextResponse.json({ error: LOCKED_MESSAGE }, { status: 429 });
-  const lamio = lamioConfig();
-  const viaLamio = given === undefined && !!lamio && validLamioPass(lamio.secret, (await cookies()).get(LAMIO_OK_COOKIE)?.value);
-  if (!viaLamio && !(await checkPassword(given))) {
+  const compte = settings();
+  const viaCompte = given === undefined && !!compte && validComptePass(compte.clientSecret, (await cookies()).get(COMPTE_OK_COOKIE)?.value);
+  if (!viaCompte && !(await checkPassword(given))) {
     await recordFailure();
     return NextResponse.json({ error: "Mot de passe incorrect" }, { status: 401 });
   }
@@ -39,6 +39,6 @@ export async function POST(req: Request) {
   }
   recordSuccess();
   const res = NextResponse.json({ ok: true, usedRecovery });
-  if (viaLamio) res.cookies.set(LAMIO_OK_COOKIE, "", { path: "/api/auth/login", maxAge: 0 });
+  if (viaCompte) res.cookies.set(COMPTE_OK_COOKIE, "", { path: "/api/auth/login", maxAge: 0 });
   return setSessionCookie(res);
 }
