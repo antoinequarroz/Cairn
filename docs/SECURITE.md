@@ -53,6 +53,20 @@ Réglages > Sécurité > **Activer** : un QR code à scanner avec une app d'auth
 - `API_TOKEN` n'est pas concerné (scripts, Hermes) : garde-le long et secret.
 - Un fichier `two-factor.json` abîmé ne désactive pas la double authentification : personne n'entre jusqu'à ce qu'il soit réparé ou supprimé.
 
+## Compte Postmelo
+
+Avec `COMPTE_URL`, `COMPTE_CLIENT_SECRET` et `APP_URL`, la page de connexion propose **Continuer avec mon Compte Postmelo** : le service de compte de la suite se porte garant de la personne (OpenID Connect, code à usage unique avec PKCE, le secret ne passe jamais par le navigateur).
+
+- **Le mot de passe de Cairn reste valable.** C'est l'entrée de secours si le service de compte est en panne. Pour revenir en arrière, vide les trois variables.
+- **Administrateurs seulement.** Cairn n'a qu'un espace : qui entre lit toutes les notes. Un membre du compte est refusé, même si le compte lui ouvre Cairn, sauf avec `COMPTE_MEMBERS=true`.
+- **Connexion récente.** Il faut s'être identifié auprès du compte dans les 12 dernières heures, sinon il redemande le mot de passe. Cairn le vérifie aussi de son côté.
+- **La double authentification n'est jamais sautée.** Si le compte a la sienne, elle a déjà été passée. Sinon, et si elle est activée ici, Cairn demande son propre code après le retour du compte.
+- **Le coffre ne change pas.** Il reste fermé jusqu'au mot de passe maître, que ni Cairn ni le compte ne connaissent.
+- Se déconnecter de Cairn ne ferme pas la session du compte.
+- Les apps Mac et iPhone gardent le mot de passe de Cairn.
+
+Activer le Compte Postmelo ajoute une porte : la sécurité des notes dépend alors aussi de celle du compte. Active sa double authentification.
+
 ## Autour
 
 - Tout est privé sauf la page de connexion. En production, Cairn refuse de démarrer sans mot de passe.
