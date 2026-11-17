@@ -123,6 +123,15 @@ public actor CairnClient {
         return try decode(NoteReply.self, data).note
     }
 
+    /// Puts an encrypted text in a note and marks it locked (cadenas). The text is encrypted on
+    /// the device before: the server only ever gets the blob.
+    public func lockNote(_ id: String, title: String, blob: String) async throws -> Note {
+        struct Payload: Encodable { var title: String; var content: String; var encrypted = true }
+        let (data, response) = try await send("PATCH", "/api/notes/\(Self.escape(id))", json: Payload(title: title, content: blob))
+        try check(response, data)
+        return try decode(NoteReply.self, data).note
+    }
+
     /// Moves a note to a folder (`nil`: the root).
     public func moveNote(_ id: String, to folderId: String?) async throws -> Note {
         let payload: [String: String?] = ["folderId": folderId]
@@ -158,6 +167,31 @@ public actor CairnClient {
         return data
     }
 
+    // MARK: Vault (always encrypted: the server never sees what is inside)
+
+    /// The vault's public parameters (`nil` when it was never created on the web) and its items.
+    public func vault() async throws -> (meta: VaultMeta?, items: [VaultItemRow]) {
+        let reply = try await get("/api/vault", as: VaultReply.self)
+        return (reply.meta, reply.items)
+    }
+
+    public func addVaultItem(_ blob: String) async throws -> VaultItemRow {
+        let (data, response) = try await send("POST", "/api/vault/items", json: ["data": blob] as [String: String])
+        try check(response, data)
+        return try decode(VaultItemReply.self, data).item
+    }
+
+    public func updateVaultItem(_ id: String, _ blob: String) async throws -> VaultItemRow {
+        let (data, response) = try await send("PUT", "/api/vault/items/\(Self.escape(id))", json: ["data": blob] as [String: String])
+        try check(response, data)
+        return try decode(VaultItemReply.self, data).item
+    }
+
+    public func deleteVaultItem(_ id: String) async throws {
+        let (data, response) = try await send("DELETE", "/api/vault/items/\(Self.escape(id))")
+        try check(response, data)
+    }
+
     // MARK: Plumbing
 
     private func get<T: Decodable>(_ path: String, as: T.Type) async throws -> T {
@@ -166,7 +200,7 @@ public actor CairnClient {
         return try decode(T.self, data)
     }
 
-    private func send(_ method: String, _ path: String, json: [String: String?]? = nil, authenticated: Bool = true) async throws -> (Data, HTTPURLResponse) {
+    private func send(_ method: String, _ path: String, json: (any Encodable)? = nil, authenticated: Bool = true) async throws -> (Data, HTTPURLResponse) {
         guard let url = URL(string: path, relativeTo: baseURL)?.absoluteURL else { throw CairnError.invalidServer }
         var request = URLRequest(url: url)
         request.httpMethod = method
@@ -221,3 +255,5 @@ private struct NotesReply: Decodable { var notes: [NoteSummary] }
 private struct NoteReply: Decodable { var note: Note }
 private struct FoldersReply: Decodable { var folders: [Folder] }
 private struct SearchReply: Decodable { var results: [SearchResult] }
+private struct VaultReply: Decodable { var meta: VaultMeta?; var items: [VaultItemRow] }
+private struct VaultItemReply: Decodable { var item: VaultItemRow }

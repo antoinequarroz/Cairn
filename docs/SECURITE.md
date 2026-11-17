@@ -92,6 +92,16 @@ Mieux vaut les avoir en tête que les découvrir :
 5. **Pas encore de passkeys.** La double authentification est un code TOTP, pas une clé physique : elle protège d'un mot de passe volé, pas d'une page d'hameçonnage qui relaierait le code en direct.
 6. **Pas d'audit externe.** Le chiffrement s'appuie sur des briques standard, mais l'ensemble n'a été relu par personne d'autre. Garde une copie de tes clés SSH ailleurs tant que Cairn est jeune.
 
+## Le coffre dans les apps Mac et iPhone
+
+Les apps ouvrent le coffre comme le navigateur, sur l'appareil, avec le même calcul (Argon2id par libsodium, puis AES-GCM) : le serveur ne voit toujours rien.
+
+- **Mot de passe maître** : la clé est calculée sur l'appareil et reste en mémoire. Le coffre se verrouille après 10 minutes sans usage, et dès que l'app passe en arrière-plan.
+- **Face ID / Touch ID** (en option, dans le menu du coffre) : la clé du coffre est rangée dans le Trousseau, réservée à cet appareil, et ne s'ouvre qu'après Face ID ou Touch ID. Si les visages ou empreintes enregistrés changent, le système l'efface et il faut retaper le mot de passe maître.
+- **Remplissage automatique** : l'app laisse une copie du coffre, toujours chiffrée, dans un dossier partagé avec l'extension. L'extension l'ouvre avec Face ID ou le mot de passe maître, sans réseau. La liste des suggestions au-dessus du clavier ne contient que les domaines et identifiants, jamais les mots de passe.
+- **Presse-papiers** : un mot de passe copié depuis l'app s'efface après 90 secondes, et sur iPhone il ne passe pas aux autres appareils.
+- **Se déconnecter** efface tout de l'appareil : clé, copie du coffre, suggestions.
+
 ## Importer et exporter le coffre
 
 - **Import** (1Password, Bitwarden, NordPass, navigateurs) : le fichier est lu dans le navigateur, chaque élément est chiffré avec la clé du coffre, puis envoyé. Le serveur refuse tout élément qui n'est pas chiffré. Un export Bitwarden « chiffré » n'est pas lisible : il faut l'export `.json` simple. **Supprime le fichier d'export après l'import** (et vide la corbeille) : il contient tout en clair.

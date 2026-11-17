@@ -9,6 +9,7 @@ import Observation
 final class AppModel {
     enum Scope: Hashable {
         case all
+        case vault
         case folder(String)
     }
 
@@ -20,6 +21,7 @@ final class AppModel {
     var selectedNoteID: String?
     var isLoading = false
     var errorMessage: String?
+    let vault = VaultModel()
 
     var isSignedIn: Bool { client != nil }
     var folderTree: [FolderNode] { FolderNode.tree(folders) }
@@ -52,6 +54,7 @@ final class AppModel {
         if let client { await client.logout() }
         if let url = CairnClient.serverURL(from: serverAddress) { Keychain.delete(account: url.absoluteString) }
         client = nil
+        vault.forget()
         notes = []
         folders = []
         selectedNoteID = nil
@@ -68,6 +71,7 @@ final class AppModel {
             async let n = client.notes()
             async let f = client.folders()
             (notes, folders) = try await (n, f)
+            try await vault.load(client)
         } catch {
             report(error)
         }
@@ -85,6 +89,7 @@ final class AppModel {
 
     func title(of scope: Scope?) -> String {
         if case let .folder(id) = scope { return folders.first { $0.id == id }?.name ?? "Dossier" }
+        if scope == .vault { return "Coffre" }
         return "Toutes les notes"
     }
 
@@ -135,6 +140,7 @@ final class AppModel {
     func report(_ error: Error) {
         if case CairnError.unauthorized = error {
             client = nil
+            vault.lock()
             errorMessage = CairnError.unauthorized.errorDescription
             return
         }
