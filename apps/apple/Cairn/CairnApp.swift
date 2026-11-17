@@ -25,6 +25,7 @@ struct CairnApp: App {
 
 struct RootView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
@@ -35,6 +36,11 @@ struct RootView: View {
             }
         }
         .animation(.default, value: model.isSignedIn)
+        // Like a password manager: the vault locks as soon as the app leaves the screen (on the
+        // Mac, when the window is closed or the app hidden).
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background { model.vault.lock() }
+        }
     }
 }
 

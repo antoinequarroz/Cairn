@@ -11,14 +11,23 @@ Une seule app SwiftUI pour le Mac et l'iPhone (et l'iPad), branchée sur le serv
 - **Créer, déplacer, supprimer** une note (⌘N sur Mac, menu contextuel, balayage sur iPhone).
 - **Conflits entre appareils** : si la note a changé ailleurs pendant que tu l'écrivais, rien n'est écrasé. L'app demande quelle version garder, ou range ta version dans une copie « (conflit) ».
 
-Pas encore : les notes à cadenas et le coffre (il faut porter le déchiffrement Argon2id + AES-GCM en Swift), le hors ligne, le remplissage automatique des mots de passe. Voir [docs/ROADMAP.md](../../docs/ROADMAP.md), étape 5.
+### Coffre, cadenas et remplissage automatique
+
+- **Coffre** dans la barre latérale : identifiants, clés SSH et notes secrètes, déchiffrés sur l'appareil avec le mot de passe maître (même calcul que le web : Argon2id puis AES-GCM). Ajouter, modifier, supprimer, générer un mot de passe, copier un champ (effacé du presse-papiers après 90 s).
+- **Face ID / Touch ID** : à activer dans le menu « … » du coffre, une fois le coffre ouvert. Le coffre se verrouille après 10 minutes sans usage et quand l'app passe en arrière-plan.
+- **Notes à cadenas** : elles s'ouvrent quand le coffre est déverrouillé, et sont chiffrées de nouveau avant chaque enregistrement.
+- **Remplissage automatique** : l'extension « Cairn » propose tes identifiants dans Safari et les apps, sur iPhone et sur Mac, après Face ID / Touch ID ou le mot de passe maître. Elle fonctionne sans réseau, à partir de la copie chiffrée que l'app laisse après chaque ouverture du coffre.
+  - iPhone : Réglages > Général > Remplissage automatique et mots de passe > activer Cairn.
+  - Mac : Réglages Système > Général > Remplissage automatique et mots de passe > activer Cairn.
+
+Pas encore : le hors ligne pour les notes, l'agent SSH sur Mac. Voir [docs/ROADMAP.md](../../docs/ROADMAP.md), étape 5.
 
 ## Lancer l'app
 
 Il faut un Mac avec **Xcode 16** ou plus récent.
 
 1. Ouvrir `apps/apple/Cairn.xcodeproj`.
-2. Cible **Cairn** > *Signing & Capabilities* : choisir ton équipe (*Team*). Un compte Apple gratuit suffit pour le Mac et ton propre iPhone (l'app expire au bout de 7 jours sur l'iPhone). Le compte Apple Developer payant sert pour TestFlight, et plus tard pour le remplissage automatique.
+2. Cibles **Cairn** et **CairnAutoFill** > *Signing & Capabilities* : choisir ton équipe (*Team*). Le **compte Apple Developer payant** est nécessaire : le remplissage automatique, le groupe d'apps et le Trousseau partagé ne sont pas ouverts aux comptes gratuits. Xcode crée les identifiants (`ch.antoinequarroz.cairn`, `ch.antoinequarroz.cairn.autofill`, `group.ch.antoinequarroz.cairn`) tout seul en signature automatique.
 3. Choisir la destination **My Mac** ou ton iPhone, puis ⌘R.
 4. Dans l'app : l'adresse du serveur, le mot de passe de Cairn, puis le code si la double authentification est activée.
 
@@ -35,9 +44,11 @@ cd CairnKit && swift test
 
 | Dossier | Contenu |
 |---|---|
-| `CairnKit/` | Tout ce qui ne dessine pas : client de l'API, modèles, Trousseau, découpage du Markdown. Paquet Swift testé à part (`swift test`). |
+| `CairnKit/` | Tout ce qui ne dessine pas : client de l'API, modèles, chiffrement du coffre, Trousseau, découpage du Markdown. Paquet Swift testé à part (`swift test`), dont un test qui ouvre un coffre créé par le code du web. Seule dépendance : libsodium (swift-sodium, figé sur un commit) pour Argon2id. |
 | `Cairn/` | L'app SwiftUI : connexion, barre latérale, liste, éditeur, lecture. Xcode prend tous les fichiers du dossier (pas de liste à tenir à jour dans le projet). |
-| `Cairn.xcodeproj` | Une seule cible multiplateforme (iOS 17, macOS 14). Identifiant `ch.antoinequarroz.cairn`, bac à sable activé sur Mac (réseau sortant seulement). |
+| `CairnAutoFill/` | L'extension de remplissage automatique (iPhone et Mac). |
+| `Config/` | Droits (*entitlements*) de l'app et de l'extension, `Info.plist` de l'extension. |
+| `Cairn.xcodeproj` | Deux cibles multiplateformes (iOS 17, macOS 14) : l'app et l'extension, embarquée dans l'app. Bac à sable activé sur Mac. |
 
 ## Sécurité
 
@@ -45,3 +56,4 @@ cd CairnKit && swift test
 - Le cookie de session est dans le Trousseau, réservé à cet appareil (`AfterFirstUnlockThisDeviceOnly`), jamais dans les préférences.
 - HTTPS obligatoire.
 - Une image d'une note hébergée sur Cairn est chargée avec la session ; le cookie n'est jamais envoyé à un autre site.
+- Le coffre suit les mêmes règles que sur le web, plus Face ID et le remplissage automatique : voir [docs/SECURITE.md](../../docs/SECURITE.md).

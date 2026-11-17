@@ -14,12 +14,22 @@ struct NotesView: View {
         NavigationSplitView(columnVisibility: $columns) {
             FolderSidebar()
         } content: {
-            NoteList(query: $query, results: results)
-                .navigationTitle(model.title(of: model.scope))
-                .searchable(text: $query, prompt: "Rechercher dans les notes")
-                .task(id: query) { await search() }
+            if model.scope == .vault {
+                VaultList().navigationTitle("Coffre")
+            } else {
+                NoteList(query: $query, results: results)
+                    .navigationTitle(model.title(of: model.scope))
+                    .searchable(text: $query, prompt: "Rechercher dans les notes")
+                    .task(id: query) { await search() }
+            }
         } detail: {
-            if let id = model.selectedNoteID {
+            if model.scope == .vault {
+                if model.vault.isUnlocked, let id = model.vault.selectedItemID {
+                    VaultItemView(itemID: id).id(id)
+                } else {
+                    ContentUnavailableView("Coffre", systemImage: model.vault.isUnlocked ? "key" : "lock", description: Text(model.vault.isUnlocked ? "Choisis un élément." : "Déverrouille le coffre pour voir son contenu."))
+                }
+            } else if let id = model.selectedNoteID {
                 NoteEditorView(noteID: id).id(id)
             } else {
                 ContentUnavailableView("Aucune note ouverte", systemImage: "doc.text", description: Text("Choisis une note ou crées-en une."))
@@ -57,6 +67,7 @@ private struct FolderSidebar: View {
         @Bindable var model = model
         List(selection: $model.scope) {
             Label("Toutes les notes", systemImage: "tray.full").tag(AppModel.Scope.all)
+            Label("Coffre", systemImage: model.vault.isUnlocked ? "lock.open" : "lock").tag(AppModel.Scope.vault)
             if !model.folderTree.isEmpty {
                 Section("Dossiers") {
                     OutlineGroup(model.folderTree, children: \.children) { node in
