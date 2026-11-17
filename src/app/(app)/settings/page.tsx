@@ -4,6 +4,7 @@ import { LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AiSettings } from "@/components/ai-settings";
+import { SecuritySettings } from "@/components/security-settings";
 import { Button, Field, inputClass, PageHeader } from "@/components/ui";
 import { api } from "@/lib/utils";
 import { lockVault } from "@/lib/vault-store";
@@ -70,6 +71,8 @@ export default function SettingsPage() {
               {busy ? "Enregistrement…" : "Changer le mot de passe"}
             </Button>
           </form>
+
+          {source && <SecuritySettings passwordRequired={source.source !== "none"} />}
 
           <AiSettings />
 

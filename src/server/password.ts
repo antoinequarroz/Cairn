@@ -9,6 +9,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { safeEqual, sessionToken } from "./auth";
+import { twoFactorStamp } from "./two-factor-file";
 
 type AuthFile = { salt: string; hash: string; sessionKey: string; changedAt: string };
 
@@ -80,9 +81,12 @@ export async function checkPassword(given: unknown): Promise<boolean> {
 /** The session cookie value. Changing the password changes it, which logs every other device out. */
 export async function currentSessionToken(): Promise<string | null> {
   const f = readAuthFile();
-  if (f) return sessionToken(f === "broken" ? BROKEN_KEY : f.sessionKey);
   const env = process.env.APP_PASSWORD;
-  return env ? sessionToken(env) : null;
+  const base = f ? (f === "broken" ? BROKEN_KEY : f.sessionKey) : env;
+  if (!base) return null;
+  // Turning two-factor on or off changes the token too (see two-factor-file.ts).
+  const stamp = twoFactorStamp();
+  return sessionToken(stamp ? `${base}\n2fa:${stamp}` : base);
 }
 
 export async function setPassword(next: string) {
