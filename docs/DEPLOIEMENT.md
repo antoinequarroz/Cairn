@@ -1,6 +1,6 @@
 # Mettre Cairn en ligne sur le VPS
 
-À la fin de ce guide : **https://cairn.antoinequarroz.ch**, protégé par un mot de passe.
+À la fin de ce guide : **https://cairn.postmelo.ch**, protégé par un mot de passe.
 
 Ce guide n'a pas encore été déroulé sur le VPS : les commandes sont celles de Metricove, adaptées. Si une étape coince, c'est probablement la 3 (le lien avec le Caddy de Metricove).
 
@@ -11,7 +11,7 @@ Ce guide n'a pas encore été déroulé sur le VPS : les commandes sont celles d
 
 ## 1. DNS
 
-Un enregistrement **A** `cairn` qui pointe vers l'IP du VPS. Pour vérifier : `dig +short cairn.antoinequarroz.ch`.
+Un enregistrement **A** `cairn` dans la zone `postmelo.ch` (Infomaniak) qui pointe vers l'IP du VPS. Pour vérifier : `dig +short cairn.postmelo.ch`.
 
 ## 2. Installer Cairn
 
@@ -44,7 +44,7 @@ Cairn écoute maintenant sur `172.17.0.1:3020` : joignable par les autres conten
 Dans `~/metricove/deploy/Caddyfile`, ajoute :
 
 ```caddy
-cairn.antoinequarroz.ch {
+cairn.postmelo.ch {
 	encode zstd gzip
 	header Strict-Transport-Security "max-age=31536000"
 	reverse_proxy host.docker.internal:3020
@@ -64,7 +64,7 @@ Si Caddy répond « 502 » : `host.docker.internal` ne correspond pas à `172.17
 
 ## 4. Premier lancement
 
-1. Ouvre https://cairn.antoinequarroz.ch et connecte-toi avec `APP_PASSWORD`.
+1. Ouvre https://cairn.postmelo.ch et connecte-toi avec `APP_PASSWORD`.
 2. Dans **Réglages**, change le mot de passe si tu veux.
 3. Dans **Coffre**, crée le coffre avec un **mot de passe maître différent**. Note-le dans un endroit sûr : il ne peut pas être récupéré.
 4. Sur Mac : Safari, Fichier, « Ajouter au Dock ». Sur iPhone : Partager, « Sur l'écran d'accueil ».

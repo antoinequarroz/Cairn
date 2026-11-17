@@ -4,7 +4,7 @@ Mes notes et mes secrets, chez moi. Un Notion sur mesure, auto-hébergé sur mon
 
 Cairn fait partie de la même suite que [Metricove](https://github.com/antoinequarroz/metricove_v2) (réseaux sociaux) et [Alfred](https://github.com/antoinequarroz/Alfred) (calendrier) : même stack, même design, une autre couleur.
 
-En ligne sur **https://cairn.antoinequarroz.ch** (voir [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md)).
+En ligne sur **https://cairn.postmelo.ch** (voir [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md)).
 
 ![Une note en Markdown](docs/img/notes.png)
 
@@ -93,7 +93,7 @@ Le **mot de passe maître du coffre** n'est pas une variable : il se choisit dan
 ```bash
 curl -H "Authorization: Bearer $API_TOKEN" -H "Content-Type: application/json" \
   -d '{"title":"Idée","content":"# Une idée\n\nÀ creuser."}' \
-  https://cairn.antoinequarroz.ch/api/notes
+  https://cairn.postmelo.ch/api/notes
 ```
 
 Les notes chiffrées de bout en bout sont renvoyées chiffrées : un script ne peut pas les lire.
