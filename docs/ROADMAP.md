@@ -16,7 +16,8 @@ Un seul endroit, chez moi, pour ce que j'écris et ce que je dois garder secret.
 
 ## Étape 2 : un vrai outil de notes
 
-- [ ] Dossiers et sous-pages, favoris, corbeille
+- [x] Projets, dossiers et sous-dossiers, glisser-déposer dans la barre latérale
+- [ ] Sous-pages, favoris, corbeille
 - [ ] Recherche dans tout le texte (SQLite FTS5)
 - [ ] Liens entre notes (`[[titre]]`) et rétroliens
 - [ ] Éditeur plus riche : raccourcis Markdown, commande `/`, cases à cocher cliquables, coloration du code
@@ -29,7 +30,9 @@ Un seul endroit, chez moi, pour ce que j'écris et ce que je dois garder secret.
 - [x] « Demander à l'IA » dans l'éditeur : résumer, améliorer, corriger, continuer, traduire, consigne libre
 - [x] Branchement sur Hermes (VPS) ou sur l'API d'Anthropic ou d'OpenAI, au choix dans `.env` ([IA.md](IA.md))
 - [x] Réglages > IA dans l'app : clés d'API et Hermes, choix du fournisseur et du modèle, clés chiffrées sur le serveur
-- [ ] Choisir le fournisseur et le modèle dans Réglages, sans toucher au `.env`
+- [x] Discussions avec l'IA rangées par projet et dossier, consignes par projet, notes épinglées en contexte, réponses enregistrées côté serveur
+- [ ] Choisir le modèle par discussion
+- [ ] Rechercher dans les discussions
 - [ ] Créer une note ou un fichier à partir d'une consigne
 - [ ] Skill Hermes et commande Claude Code pour Cairn
 - [ ] Questions sur l'ensemble des notes

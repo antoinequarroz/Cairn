@@ -31,15 +31,23 @@ const TIMEOUT_MS: Record<ProviderId, number> = { hermes: 150_000, anthropic: 120
 
 type Upstream = { url: string; headers: Record<string, string>; body: unknown; delta: (data: string) => Delta };
 
-function upstream({ provider, model }: ProviderChoice, env: Record<string, string | undefined>, system: string, user: string): Upstream {
-  const chat = [
-    { role: "system", content: system },
-    { role: "user", content: user },
-  ];
+/** What is sent to a provider: a system prompt and the turns of the conversation, the user's first. */
+export type Completion = { system: string; messages: { role: "user" | "assistant"; content: string }[] };
+
+type Options = {
+  provider?: ProviderId;
+  /** Hermes keeps one session per key: the editor shares one, each discussion has its own. */
+  sessionKey?: string;
+  /** Asks Anthropic to cache the prompt: worth it when the same prefix comes back, as in a discussion. */
+  cache?: boolean;
+};
+
+function upstream({ provider, model }: ProviderChoice, env: Record<string, string | undefined>, { system, messages }: Completion, options: Options): Upstream {
+  const chat = [{ role: "system", content: system }, ...messages];
   if (provider === "hermes") {
     return {
       url: `${env.HERMES_URL!.trim().replace(/\/+$/, "")}/v1/chat/completions`,
-      headers: { Authorization: `Bearer ${env.HERMES_API_KEY!.trim()}`, "X-Hermes-Session-Key": "cairn-notes" },
+      headers: { Authorization: `Bearer ${env.HERMES_API_KEY!.trim()}`, "X-Hermes-Session-Key": options.sessionKey ?? "cairn-notes" },
       body: { model, stream: true, messages: chat },
       delta: openAiDelta,
     };
@@ -55,7 +63,9 @@ function upstream({ provider, model }: ProviderChoice, env: Record<string, strin
   // Anthropic Messages API. No `thinking`, effort or sampling fields: each model then runs with its
   // own defaults, so ANTHROPIC_MODEL can name any current model without a 400 on a field it rejects.
   const headers: Record<string, string> = { "x-api-key": env.ANTHROPIC_API_KEY!.trim(), "anthropic-version": "2026-10-21" };
-  const body: Record<string, unknown> = { model, max_tokens: 64_000, stream: true, system, messages: [{ role: "user", content: user }] };
+  const body: Record<string, unknown> = { model, max_tokens: 64_000, stream: true, system, messages };
+  // Automatic caching: the next message of the discussion reads the same prefix back at a tenth of the price.
+  if (options.cache) body.cache_control = { type: "ephemeral" };
   // These models can decline a request through a safety classifier. With a fallback, the API retries
   // on the model Anthropic recommends, on the same stream, and the text simply carries on.
   if (/^claude-(fable|mythos|opus)-5(-|$)|^claude-sonnet-5-5$/.test(model)) {
@@ -79,11 +89,16 @@ const short = (s: string) => redact(s.replace(/\s+/g, " ").trim()).slice(0, 200)
  * Aborting `signal` (the browser went away, or pressed Stop) cancels the upstream request too.
  */
 export async function streamAnswer(input: AiInput, signal?: AbortSignal, options: { provider?: ProviderId } = {}): Promise<ReadableStream<Uint8Array>> {
+  const { system, user } = buildPrompt(input);
+  return streamCompletion({ system, messages: [{ role: "user", content: user }] }, signal, options);
+}
+
+/** Like streamAnswer, for any conversation: a discussion sends its whole history. Same errors, same stream. */
+export async function streamCompletion(prompt: Completion, signal?: AbortSignal, options: Options = {}): Promise<ReadableStream<Uint8Array>> {
   const env = aiEnv();
   const choice = options.provider ? describeProvider(options.provider, env) : pickProvider(env);
   if (!choice.ready || !choice.provider) throw new AiError(options.provider ? `${choice.label} n'est pas configuré` : "Aucune IA n'est configurée");
-  const { system, user } = buildPrompt(input);
-  const up = upstream(choice, env, system, user);
+  const up = upstream(choice, env, prompt, options);
   // fetch refuses such an address with a message that quotes it, password included: say it plainly instead.
   if (badProviderUrl(up.url)) throw new AiError(`L'adresse de ${choice.label} est invalide : il faut une adresse http(s) complète, sans identifiants (utilisateur:motdepasse@). Voir docs/IA.md.`);
 

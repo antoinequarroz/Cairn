@@ -16,6 +16,8 @@ En ligne sur **https://cairn.antoinequarroz.ch** (voir [docs/DEPLOIEMENT.md](doc
 - **Cadenas par note** : une note sensible peut être chiffrée de bout en bout avec la clé du coffre.
 - **Accès protégé** par mot de passe, modifiable dans Réglages.
 - **Installable** comme une app sur Mac (Safari, « Ajouter au Dock ») et sur iPhone (« Sur l'écran d'accueil »).
+- **Projets et dossiers** pour ranger notes et discussions, par glisser-déposer dans la barre latérale.
+- **Discussions avec l'IA**, rangées dans les projets : consignes par projet, notes épinglées en contexte, réponses enregistrées sur le serveur même si l'onglet se ferme.
 - **API** pour Hermes et Claude Code, qui peuvent lire et écrire des notes.
 - **Demander à l'IA** dans l'éditeur : résumer, améliorer, corriger, continuer, traduire, ou une consigne libre, sur la sélection ou sur toute la note. La réponse s'affiche à part, tu choisis ensuite de l'insérer ou non. Branché sur Hermes, l'API d'Anthropic ou celle d'OpenAI ([docs/IA.md](docs/IA.md)). Jamais sur une note chiffrée.
 
@@ -61,13 +63,19 @@ Le **mot de passe maître du coffre** n'est pas une variable : il se choisit dan
 | Méthode | Route | Rôle |
 | --- | --- | --- |
 | GET | `/api/notes` | Lister les notes (titre, extrait, date) |
-| POST | `/api/notes` | Créer une note (`title`, `content` en Markdown) |
+| POST | `/api/notes` | Créer une note (`title`, `content` en Markdown, `folderId` facultatif) |
 | GET | `/api/notes/:id` | Lire une note |
-| PATCH | `/api/notes/:id` | Modifier une note |
+| PATCH | `/api/notes/:id` | Modifier une note (`folderId: null` la sort de son dossier) |
 | DELETE | `/api/notes/:id` | Supprimer une note |
 | POST | `/api/files` | Commencer l'envoi d'un fichier (`name`, `mime`, `size`) |
 | PUT | `/api/uploads/:id?offset=N` | Envoyer un morceau du fichier (8 Mo au plus) |
 | GET | `/api/files/:id` | Télécharger un fichier |
+| GET, POST | `/api/folders` | Lister les dossiers, en créer un (`name`, `parentId`, `instructions`) |
+| PATCH, DELETE | `/api/folders/:id` | Renommer, déplacer, changer les consignes ; supprimer (le contenu remonte d'un niveau) |
+| GET, POST | `/api/conversations` | Lister les discussions, en créer une (`folderId`, `title`, `contextNoteIds`) |
+| GET, PATCH, DELETE | `/api/conversations/:id` | Lire une discussion et ses messages, la modifier, la supprimer |
+| POST | `/api/conversations/:id/messages` | Envoyer un message (`content`). La réponse arrive en texte, au fil de l'eau, et reste enregistrée |
+| POST | `/api/conversations/:id/stop` | Arrêter la réponse en cours |
 | GET | `/api/ai` | Savoir si une IA est branchée, et laquelle |
 | POST | `/api/ai` | Demander à l'IA (`action`, `text`, `title`, `instruction`, `language`). La réponse arrive en texte, au fil de l'eau |
 

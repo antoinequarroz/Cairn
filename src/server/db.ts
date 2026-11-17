@@ -3,7 +3,7 @@ import Database from "better-sqlite3";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import type { FileInfo, Note, NoteSummary, VaultItemRow, VaultMeta } from "@/lib/types";
+import type { ChatMessage, Conversation, ConversationSummary, FileInfo, Folder, Note, NoteSummary, VaultItemRow, VaultMeta } from "@/lib/types";
 
 export const DATA_DIR = path.resolve(process.env.DATA_DIR ?? "./data");
 export const FILES_DIR = path.join(DATA_DIR, "files");
@@ -57,7 +57,52 @@ export function db() {
       size integer not null,
       created_at text not null
     );
+    -- Folders, as a tree. A folder at the root is a project. Its instructions go to the AI in every
+    -- discussion inside it, subfolders included.
+    create table if not exists folders (
+      id text primary key,
+      parent_id text,
+      name text not null,
+      instructions text not null default '',
+      created_at text not null,
+      updated_at text not null
+    );
+    create index if not exists folders_parent on folders (parent_id);
+    -- AI discussions. context_note_ids: JSON array of the notes the AI reads with each message.
+    create table if not exists conversations (
+      id text primary key,
+      folder_id text,
+      title text not null default '',
+      context_note_ids text not null default '[]',
+      -- Delimits the pinned notes in the prompt. Random, and the same for the whole discussion, so
+      -- the prompt keeps the same beginning from one message to the next (Anthropic's cache needs it).
+      prompt_nonce text not null default '',
+      created_at text not null,
+      updated_at text not null
+    );
+    create index if not exists conversations_updated on conversations (updated_at desc);
+    -- One row per message. An answer is written while it streams (state = 'streaming').
+    create table if not exists messages (
+      id text primary key,
+      conversation_id text not null,
+      role text not null check (role in ('user', 'assistant')),
+      content text not null default '',
+      state text not null default 'done' check (state in ('streaming', 'done', 'stopped', 'error')),
+      error text,
+      model text,
+      seq integer not null,
+      created_at text not null
+    );
+    create index if not exists messages_conversation on messages (conversation_id, seq);
   `);
+  // Databases created before folders existed: notes get their folder column.
+  const noteColumns = conn.prepare("pragma table_info(notes)").all() as { name: string }[];
+  if (!noteColumns.some((c) => c.name === "folder_id")) conn.exec("alter table notes add column folder_id text");
+  conn.exec("create index if not exists notes_folder on notes (folder_id)");
+  const conversationColumns = conn.prepare("pragma table_info(conversations)").all() as { name: string }[];
+  if (!conversationColumns.some((c) => c.name === "prompt_nonce")) conn.exec("alter table conversations add column prompt_nonce text not null default ''");
+  // An answer still marked as streaming when the server starts was cut by a restart: nothing writes it anymore.
+  conn.prepare("update messages set state = 'stopped' where state = 'streaming'").run();
   globalForDb.__cairnDb = conn;
   return conn;
 }
@@ -65,13 +110,13 @@ export function db() {
 export const newId = () => crypto.randomBytes(9).toString("base64url");
 const now = () => new Date().toISOString();
 
-type NoteRow = { id: string; title: string; content: string; encrypted: number; created_at: string; updated_at: string };
+type NoteRow = { id: string; title: string; content: string; encrypted: number; folder_id: string | null; created_at: string; updated_at: string };
 
-const toNote = (r: NoteRow): Note => ({ id: r.id, title: r.title, content: r.content, encrypted: !!r.encrypted, createdAt: r.created_at, updatedAt: r.updated_at });
+const toNote = (r: NoteRow): Note => ({ id: r.id, title: r.title, content: r.content, encrypted: !!r.encrypted, folderId: r.folder_id, createdAt: r.created_at, updatedAt: r.updated_at });
 
 export function listNotes(): NoteSummary[] {
-  const rows = db().prepare("select id, title, encrypted, updated_at, case when encrypted = 1 then '' else substr(content, 1, 400) end as content, created_at from notes order by updated_at desc").all() as NoteRow[];
-  return rows.map((r) => ({ id: r.id, title: r.title, encrypted: !!r.encrypted, updatedAt: r.updated_at, excerpt: r.content.replace(/\s+/g, " ").trim().slice(0, 160) }));
+  const rows = db().prepare("select id, title, encrypted, folder_id, updated_at, case when encrypted = 1 then '' else substr(content, 1, 400) end as content, created_at from notes order by updated_at desc").all() as NoteRow[];
+  return rows.map((r) => ({ id: r.id, title: r.title, encrypted: !!r.encrypted, folderId: r.folder_id, updatedAt: r.updated_at, excerpt: r.content.replace(/\s+/g, " ").trim().slice(0, 160) }));
 }
 
 export function getNote(id: string): Note | null {
@@ -79,19 +124,22 @@ export function getNote(id: string): Note | null {
   return r ? toNote(r) : null;
 }
 
-export function createNote(input: { title?: string; content?: string }): Note {
+export function createNote(input: { title?: string; content?: string; folderId?: string | null }): Note {
   const t = now();
   const id = newId();
-  db().prepare("insert into notes (id, title, content, encrypted, created_at, updated_at) values (?, ?, ?, 0, ?, ?)").run(id, input.title ?? "", input.content ?? "", t, t);
+  db().prepare("insert into notes (id, title, content, encrypted, folder_id, created_at, updated_at) values (?, ?, ?, 0, ?, ?, ?)").run(id, input.title ?? "", input.content ?? "", input.folderId ?? null, t, t);
   return getNote(id)!;
 }
 
-export function updateNote(id: string, patch: { title?: string; content?: string; encrypted?: boolean }): Note | null {
+/** `folderId`: undefined keeps the folder, null moves the note to the root. Moving a note does not change its date. */
+export function updateNote(id: string, patch: { title?: string; content?: string; encrypted?: boolean; folderId?: string | null }): Note | null {
   const cur = getNote(id);
   if (!cur) return null;
+  const touched =
+    (patch.title !== undefined && patch.title !== cur.title) || (patch.content !== undefined && patch.content !== cur.content) || (patch.encrypted !== undefined && patch.encrypted !== cur.encrypted);
   db()
-    .prepare("update notes set title = ?, content = ?, encrypted = ?, updated_at = ? where id = ?")
-    .run(patch.title ?? cur.title, patch.content ?? cur.content, (patch.encrypted ?? cur.encrypted) ? 1 : 0, now(), id);
+    .prepare("update notes set title = ?, content = ?, encrypted = ?, folder_id = ?, updated_at = ? where id = ?")
+    .run(patch.title ?? cur.title, patch.content ?? cur.content, (patch.encrypted ?? cur.encrypted) ? 1 : 0, patch.folderId === undefined ? cur.folderId : patch.folderId, touched ? now() : cur.updatedAt, id);
   return getNote(id);
 }
 
@@ -170,4 +218,184 @@ export function getSetting<T>(key: string): T | null {
 
 export function setSetting(key: string, value: unknown) {
   db().prepare("insert into settings (key, value) values (?, ?) on conflict (key) do update set value = excluded.value").run(key, JSON.stringify(value));
+}
+
+// --- Folders -------------------------------------------------------------------------------------
+
+type FolderRow = { id: string; parent_id: string | null; name: string; instructions: string; created_at: string; updated_at: string };
+
+const toFolder = (r: FolderRow): Folder => ({ id: r.id, parentId: r.parent_id, name: r.name, instructions: r.instructions, createdAt: r.created_at, updatedAt: r.updated_at });
+
+export function listFolders(): Folder[] {
+  return (db().prepare("select * from folders order by name collate nocase, created_at").all() as FolderRow[]).map(toFolder);
+}
+
+export function getFolder(id: string): Folder | null {
+  const r = db().prepare("select * from folders where id = ?").get(id) as FolderRow | undefined;
+  return r ? toFolder(r) : null;
+}
+
+/** The folder and its parents, from the folder up to its project (the root folder). */
+export function folderChain(id: string | null): Folder[] {
+  const chain: Folder[] = [];
+  const seen = new Set<string>();
+  for (let cur = id ? getFolder(id) : null; cur && !seen.has(cur.id); cur = cur.parentId ? getFolder(cur.parentId) : null) {
+    seen.add(cur.id);
+    chain.push(cur);
+  }
+  return chain;
+}
+
+/** True when `folderId` is `ancestorId` or lies somewhere inside it: moving `ancestorId` there would make a loop. */
+export function isInside(folderId: string, ancestorId: string) {
+  return folderChain(folderId).some((f) => f.id === ancestorId);
+}
+
+export function createFolder(input: { name: string; parentId?: string | null; instructions?: string }): Folder {
+  const t = now();
+  const id = newId();
+  db().prepare("insert into folders (id, parent_id, name, instructions, created_at, updated_at) values (?, ?, ?, ?, ?, ?)").run(id, input.parentId ?? null, input.name, input.instructions ?? "", t, t);
+  return getFolder(id)!;
+}
+
+/** `parentId`: undefined keeps the parent, null moves the folder to the root. The caller checks for loops (isInside). */
+export function updateFolder(id: string, patch: { name?: string; parentId?: string | null; instructions?: string }): Folder | null {
+  const cur = getFolder(id);
+  if (!cur) return null;
+  db()
+    .prepare("update folders set name = ?, parent_id = ?, instructions = ?, updated_at = ? where id = ?")
+    .run(patch.name ?? cur.name, patch.parentId === undefined ? cur.parentId : patch.parentId, patch.instructions ?? cur.instructions, now(), id);
+  return getFolder(id);
+}
+
+/**
+ * Deletes a folder, never what it holds: its notes, discussions and subfolders move up to its
+ * parent (or to the root). Deleting a folder by mistake loses a name, not a note.
+ */
+export function deleteFolder(id: string) {
+  const cur = getFolder(id);
+  if (!cur) return false;
+  db().transaction(() => {
+    db().prepare("update notes set folder_id = ? where folder_id = ?").run(cur.parentId, id);
+    db().prepare("update conversations set folder_id = ? where folder_id = ?").run(cur.parentId, id);
+    db().prepare("update folders set parent_id = ? where parent_id = ?").run(cur.parentId, id);
+    db().prepare("delete from folders where id = ?").run(id);
+  })();
+  return true;
+}
+
+// --- Discussions with the AI ---------------------------------------------------------------------
+
+type ConversationRow = { id: string; folder_id: string | null; title: string; context_note_ids: string; prompt_nonce: string; created_at: string; updated_at: string };
+
+const parseIds = (json: string): string[] => {
+  try {
+    const v: unknown = JSON.parse(json);
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+};
+
+const toConversation = (r: ConversationRow): Conversation => ({
+  id: r.id,
+  folderId: r.folder_id,
+  title: r.title,
+  contextNoteIds: parseIds(r.context_note_ids),
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+});
+
+export function listConversations(): ConversationSummary[] {
+  const rows = db().prepare("select id, folder_id, title, updated_at from conversations order by updated_at desc").all() as ConversationRow[];
+  return rows.map((r) => ({ id: r.id, folderId: r.folder_id, title: r.title, updatedAt: r.updated_at }));
+}
+
+export function getConversation(id: string): Conversation | null {
+  const r = db().prepare("select * from conversations where id = ?").get(id) as ConversationRow | undefined;
+  return r ? toConversation(r) : null;
+}
+
+export function createConversation(input: { folderId?: string | null; title?: string; contextNoteIds?: string[] }): Conversation {
+  const t = now();
+  const id = newId();
+  db()
+    .prepare("insert into conversations (id, folder_id, title, context_note_ids, prompt_nonce, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?)")
+    .run(id, input.folderId ?? null, input.title ?? "", JSON.stringify(input.contextNoteIds ?? []), crypto.randomBytes(8).toString("hex"), t, t);
+  return getConversation(id)!;
+}
+
+/**
+ * `folderId`: undefined keeps the folder, null moves the discussion to the root. Moving it does not
+ * change its date: it was not written in.
+ */
+export function updateConversation(id: string, patch: { title?: string; folderId?: string | null; contextNoteIds?: string[] }): Conversation | null {
+  const cur = getConversation(id);
+  if (!cur) return null;
+  const ids = patch.contextNoteIds ?? cur.contextNoteIds;
+  const touched = (patch.title !== undefined && patch.title !== cur.title) || JSON.stringify(ids) !== JSON.stringify(cur.contextNoteIds);
+  db()
+    .prepare("update conversations set title = ?, folder_id = ?, context_note_ids = ?, updated_at = ? where id = ?")
+    .run(patch.title ?? cur.title, patch.folderId === undefined ? cur.folderId : patch.folderId, JSON.stringify(ids), touched ? now() : cur.updatedAt, id);
+  return getConversation(id);
+}
+
+/** The discussion's prompt identifier. Only the server reads it: it never goes to the browser. */
+export function conversationNonce(id: string): string {
+  const r = db().prepare("select prompt_nonce from conversations where id = ?").get(id) as { prompt_nonce: string } | undefined;
+  return r?.prompt_nonce ?? "";
+}
+
+export function setConversationNonce(id: string, nonce: string) {
+  db().prepare("update conversations set prompt_nonce = ? where id = ?").run(nonce, id);
+}
+
+export function deleteConversation(id: string) {
+  return db().transaction(() => {
+    db().prepare("delete from messages where conversation_id = ?").run(id);
+    return db().prepare("delete from conversations where id = ?").run(id).changes > 0;
+  })();
+}
+
+type MessageRow = { id: string; conversation_id: string; role: "user" | "assistant"; content: string; state: ChatMessage["state"]; error: string | null; model: string | null; created_at: string };
+
+const toMessage = (r: MessageRow): ChatMessage => ({
+  id: r.id,
+  role: r.role,
+  content: r.content,
+  state: r.state,
+  ...(r.error ? { error: r.error } : {}),
+  ...(r.model ? { model: r.model } : {}),
+  createdAt: r.created_at,
+});
+
+export function listMessages(conversationId: string): ChatMessage[] {
+  return (db().prepare("select * from messages where conversation_id = ? order by seq").all(conversationId) as MessageRow[]).map(toMessage);
+}
+
+export function getMessage(id: string): ChatMessage | null {
+  const r = db().prepare("select * from messages where id = ?").get(id) as MessageRow | undefined;
+  return r ? toMessage(r) : null;
+}
+
+/** Adds a message at the end of a discussion, and moves the discussion to the top of the recent ones. */
+export function addMessage(conversationId: string, m: { role: ChatMessage["role"]; content: string; state?: ChatMessage["state"]; model?: string }): ChatMessage {
+  const t = now();
+  const id = newId();
+  db().transaction(() => {
+    const { next } = db().prepare("select coalesce(max(seq), 0) + 1 as next from messages where conversation_id = ?").get(conversationId) as { next: number };
+    db()
+      .prepare("insert into messages (id, conversation_id, role, content, state, model, seq, created_at) values (?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(id, conversationId, m.role, m.content, m.state ?? "done", m.model ?? null, next, t);
+    db().prepare("update conversations set updated_at = ? where id = ?").run(t, conversationId);
+  })();
+  return getMessage(id)!;
+}
+
+export function updateMessage(id: string, patch: { content?: string; state?: ChatMessage["state"]; error?: string | null }) {
+  const cur = db().prepare("select content, state, error from messages where id = ?").get(id) as Pick<MessageRow, "content" | "state" | "error"> | undefined;
+  if (!cur) return;
+  db()
+    .prepare("update messages set content = ?, state = ?, error = ? where id = ?")
+    .run(patch.content ?? cur.content, patch.state ?? cur.state, patch.error === undefined ? cur.error : patch.error, id);
 }

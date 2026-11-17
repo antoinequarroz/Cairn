@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { deleteNote, getNote, updateNote } from "@/server/db";
-import { body, fail, MAX_NOTE, MAX_TITLE, text } from "@/server/http";
+import { body, fail, folderRef, MAX_NOTE, MAX_TITLE, text } from "@/server/http";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -13,8 +13,9 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const b = await body(req);
   const title = text(b.title, MAX_TITLE);
   const content = text(b.content, MAX_NOTE);
-  if (title === null || content === null || (b.encrypted !== undefined && typeof b.encrypted !== "boolean")) return fail("Note invalide");
-  const note = updateNote((await params).id, { title, content, encrypted: b.encrypted as boolean | undefined });
+  const folderId = folderRef(b.folderId);
+  if (title === null || content === null || folderId === false || (b.encrypted !== undefined && typeof b.encrypted !== "boolean")) return fail("Note invalide");
+  const note = updateNote((await params).id, { title, content, encrypted: b.encrypted as boolean | undefined, folderId });
   return note ? NextResponse.json({ note }) : fail("Note introuvable", 404);
 }
 

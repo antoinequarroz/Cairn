@@ -1,6 +1,6 @@
 "use client";
 
-import { Columns2, Eye, Lock, LockOpen, Paperclip, Pencil, Trash2 } from "lucide-react";
+import { Columns2, Eye, Lock, LockOpen, MessagesSquare, Paperclip, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -14,6 +14,7 @@ import { api, cn } from "@/lib/utils";
 import { useVaultKey, vaultKey } from "@/lib/vault-store";
 import { AiButton, AiPanel, useAi, type AiTarget } from "./ai-assistant";
 import { Button } from "./ui";
+import { FolderSelect } from "./folder-select";
 import { UnlockForm } from "./unlock-form";
 
 type Mode = "write" | "split" | "preview";
@@ -27,7 +28,7 @@ const MODES: { mode: Mode; label: string; Icon: typeof Eye }[] = [
 
 export function Editor({ id }: { id: string }) {
   const router = useRouter();
-  const { touch, remove } = useNotes();
+  const { notes, touch, remove, move, newConversation } = useNotes();
   const key = useVaultKey();
   const [note, setNote] = useState<Note | null>(null);
   const [missing, setMissing] = useState(false);
@@ -206,6 +207,9 @@ export function Editor({ id }: { id: string }) {
   if (!note) return <div className="flex-1" />;
 
   const locked = note.encrypted && content === null;
+  // Where the note is filed: the sidebar may move it (drag and drop) while it is open, the store knows.
+  const filed = notes.find((n) => n.id === id);
+  const folderId = filed ? filed.folderId : note.folderId;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -233,7 +237,14 @@ export function Editor({ id }: { id: string }) {
             <Paperclip className="size-3.5" />
             <span className="max-md:hidden">Joindre</span>
           </Button>
+          <FolderSelect value={folderId} onChange={(f) => move("note", id, f)} className="max-w-[180px]" />
           <AiButton ai={ai} disabled={locked} />
+          {!note.encrypted && (
+            <Button size="sm" variant="ghost" onClick={async () => { await flush(); newConversation(folderId, [id]); }} title="Ouvrir une discussion avec l'IA, cette note en contexte">
+              <MessagesSquare className="size-3.5" />
+              <span className="max-lg:hidden">Discuter</span>
+            </Button>
+          )}
           <Button size="sm" variant="ghost" disabled={locked} onClick={toggleLock} title={note.encrypted ? "Retirer le chiffrement de bout en bout" : "Chiffrer cette note de bout en bout"} className={cn(note.encrypted && "text-accent")}>
             {note.encrypted ? <Lock className="size-3.5" /> : <LockOpen className="size-3.5" />}
             <span className="max-md:hidden">{note.encrypted ? "Chiffrée" : "Chiffrer"}</span>
