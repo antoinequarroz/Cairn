@@ -8,6 +8,10 @@
 //
 // Lamio decides who may come in (its admins, and the members they allow on its Modules page).
 // Off unless LAMIO_URL and LAMIO_SSO_SECRET are both set. The password keeps working either way.
+//
+// Lamio stands in for the password only. When two-factor is on, the code is still asked: the
+// browser gets a short-lived pass (LAMIO_OK_COOKIE) that the login accepts in place of the password.
+import crypto from "node:crypto";
 
 export const LAMIO_STATE_COOKIE = "lamio_state";
 export const LAMIO_STATE_MAX_AGE = 600;
@@ -41,4 +45,22 @@ export async function lamioUser(config: { url: string; secret: string; client: s
     console.error("[lamio] échange du code impossible", e);
     return null;
   }
+}
+
+export const LAMIO_OK_COOKIE = "lamio_ok";
+export const LAMIO_OK_MAX_AGE = 300;
+
+const sign = (secret: string, expires: number) => crypto.createHmac("sha256", secret).update(`lamio-ok:${expires}`).digest("hex");
+
+/** "Lamio vouched for this browser", good for a few minutes: what is left to give is the two-factor code. */
+export function lamioPass(secret: string, now = Date.now()) {
+  const expires = now + LAMIO_OK_MAX_AGE * 1000;
+  return `${expires}.${sign(secret, expires)}`;
+}
+
+export function validLamioPass(secret: string, value: string | undefined, now = Date.now()) {
+  const [expires, mac] = (value ?? "").split(".");
+  if (!/^\d{13}$/.test(expires ?? "") || !mac || Number(expires) < now) return false;
+  const expected = sign(secret, Number(expires));
+  return mac.length === expected.length && crypto.timingSafeEqual(Buffer.from(mac), Buffer.from(expected));
 }

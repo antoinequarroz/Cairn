@@ -8,9 +8,11 @@
 | Notes verrouillées | Chiffrées dans le navigateur avec la clé du coffre | Non (sauf le titre) |
 | Coffre : mots de passe, clés SSH | Chiffré dans le navigateur avec la clé du coffre | Non |
 | Mot de passe de l'app | Haché avec scrypt dans `data/auth.json` | Seulement le hachage |
+| Double authentification | Secret TOTP chiffré (AES-256-GCM) dans `data/two-factor.json`, codes de secours hachés | Oui, il doit vérifier les codes |
+| Sauvegardes | Chiffrées avec age, clé privée hors du VPS | Non |
 | Mot de passe maître du coffre | Ne quitte jamais l'appareil | Non |
 
-Concrètement : si quelqu'un vole la base, une sauvegarde, ou prend la main sur le VPS **à froid**, il obtient les notes normales, mais ni le coffre ni les notes verrouillées.
+Concrètement : si quelqu'un vole la base ou prend la main sur le VPS **à froid**, il obtient les notes normales, mais ni le coffre ni les notes verrouillées.
 
 ## Deux mots de passe, deux rôles
 
@@ -36,10 +38,25 @@ mot de passe maître ──Argon2id──► clé de déverrouillage ──AES-2
 
 Le code est dans `src/lib/crypto.ts`, avec ses tests (`pnpm test`).
 
+## Double authentification
+
+Réglages > Sécurité > **Activer** : un QR code à scanner avec une app d'authentification (1Password, l'app Mots de passe d'Apple, Authy, Google Authenticator), puis le mot de passe et un premier code pour confirmer. Ensuite, la connexion demande le mot de passe **puis** un code à 6 chiffres.
+
+<img src="img/double-authentification.jpg" alt="Réglages > Sécurité après l'activation, avec les codes de secours" width="640">
+<img src="img/connexion-code.jpg" alt="Connexion : le code à 6 chiffres est demandé après le mot de passe" width="640">
+
+- **TOTP standard** (RFC 6238) : SHA-1, 6 chiffres, 30 secondes. Un pas d'avance ou de retard est accepté (horloge du téléphone un peu décalée). Un code déjà accepté ne repasse pas.
+- **8 codes de secours**, affichés une seule fois, chacun utilisable une fois (« Téléphone perdu ? » sur la page de connexion). Le serveur n'en garde que l'empreinte SHA-256. Réglages peut en générer de nouveaux (les anciens cessent de marcher).
+- Activer ou désactiver la double authentification **déconnecte les autres appareils** : ils devront repasser par le code. Désactiver demande le mot de passe et un code.
+- Le secret est chiffré avec la même clé que les clés d'IA (`CAIRN_SECRET` ou `secret.key`). Si cette clé change, seuls les codes de secours marchent encore.
+- **Tout perdu (téléphone et codes de secours)** : sur le VPS, `cd ~/cairn/deploy && docker compose exec cairn rm /data/two-factor.json`. La connexion redevient mot de passe seul. Accéder au VPS par SSH est donc le vrai dernier recours, d'où l'importance de le protéger (voir plus bas).
+- `API_TOKEN` n'est pas concerné (scripts, Hermes) : garde-le long et secret.
+- Un fichier `two-factor.json` abîmé ne désactive pas la double authentification : personne n'entre jusqu'à ce qu'il soit réparé ou supprimé.
+
 ## Autour
 
 - Tout est privé sauf la page de connexion. En production, Cairn refuse de démarrer sans mot de passe.
-- 8 mauvais mots de passe bloquent la connexion pendant 15 minutes.
+- 8 erreurs (mot de passe ou code, à la connexion comme dans Réglages) bloquent la connexion pendant 15 minutes.
 - Changer le mot de passe de l'app déconnecte tous les autres appareils.
 - `API_TOKEN` donne accès aux notes et aux fichiers, **jamais** aux routes du coffre ni aux réglages (mot de passe, clés d'IA), qui ne se gèrent que depuis un navigateur connecté.
 - Le Markdown est nettoyé avant affichage. Les fichiers joints qui ne sont pas des images, vidéos, sons ou PDF sont toujours téléchargés, jamais affichés : un fichier HTML envoyé ne peut pas exécuter de script sur l'app.
@@ -59,7 +76,7 @@ Le bouton « IA » n'envoie quelque chose que lorsque tu choisis une action, et 
 - **Discussions** : elles sont enregistrées dans la base comme les notes normales (lisibles par le serveur, qui doit bien les envoyer au fournisseur). Les notes épinglées sont lues par le serveur dans la base : d'une note chiffrée, il n'a qu'un bloc illisible, qu'il laisse de côté. Son texte déchiffré n'existe jamais côté serveur.
 - **Notes chiffrées** : l'IA y est désactivée, même quand la note est déverrouillée à l'écran. S'en servir enverrait le texte déchiffré au serveur, puis au fournisseur. Le blocage est fait dans le code qui envoie la demande, pas seulement dans le menu.
 - **Où part le texte** : avec Hermes, il va de Cairn à Hermes sans quitter le VPS, puis Hermes l'envoie au modèle que tu lui as configuré. Avec Anthropic ou OpenAI, il part chez eux, sous leurs conditions d'API. Sans fournisseur configuré, rien ne part nulle part.
-- **Les clés d'API** sont dans le `.env` du serveur ou saisies dans Réglages > IA. Celles de Réglages sont chiffrées dans la base (AES-256-GCM) avec une clé du serveur : `CAIRN_SECRET` si tu le définis, sinon `data/secret.key`, créé au premier usage et lisible par l'app seule. La sauvegarde nocturne n'emporte pas `secret.key` : une sauvegarde volée ne livre pas tes clés d'IA (en contrepartie, après une restauration sur un autre serveur, il faut les ressaisir, ou avoir gardé `CAIRN_SECRET`). Le navigateur ne reçoit jamais une clé, seulement ses 4 derniers caractères pour la reconnaître, et elles sont retirées des messages d'erreur, comme les identifiants qu'une adresse pourrait contenir (`utilisateur:motdepasse@`).
+- **Les clés d'API** sont dans le `.env` du serveur ou saisies dans Réglages > IA. Celles de Réglages sont chiffrées dans la base (AES-256-GCM) avec une clé du serveur : `CAIRN_SECRET` si tu le définis, sinon `data/secret.key`, créé au premier usage et lisible par l'app seule. La sauvegarde nocturne emporte `secret.key`, mais dans une archive chiffrée avec age : une restauration ramène les clés d'IA, une sauvegarde volée ne livre rien. Si tu utilises `CAIRN_SECRET`, garde-le avec le `.env`, hors du VPS. Le navigateur ne reçoit jamais une clé, seulement ses 4 derniers caractères pour la reconnaître, et elles sont retirées des messages d'erreur, comme les identifiants qu'une adresse pourrait contenir (`utilisateur:motdepasse@`).
 - **Une note ne commande pas l'IA** : son contenu et son titre sont présentés au modèle comme un texte à travailler, pas comme des instructions, entre des balises au nom tiré au hasard à chaque demande (un texte collé qui contient `</note>` ne referme rien). C'est une défense en profondeur, pas une garantie : un modèle peut quand même se laisser influencer. Relis ce que l'IA propose avant de l'insérer. Rien n'est écrit dans la note sans ton clic. Avec Hermes, la vraie limite est celle des outils que tu as donnés à l'agent.
 - **La réponse ne charge rien d'un autre site** : dans le panneau et dans les discussions, elle est affichée sans image, vidéo ni style distants (ils deviennent des liens à cliquer). Sinon, un texte piégé pourrait faire écrire à l'IA une adresse d'image qui emporte un bout de la note vers un tiers, avant même ton clic. Une fois insérée dans la note, la réponse est du Markdown comme le reste : l'aperçu affiche alors ses images.
 - `API_TOKEN` donne aussi accès à `/api/ai`, `/api/folders` et `/api/conversations` : un script qui a le jeton peut lire tes discussions et utiliser ton IA (et donc ta clé ou ton Hermes).
@@ -72,11 +89,11 @@ Mieux vaut les avoir en tête que les découvrir :
 2. **Les notes normales ne sont pas chiffrées dans la base.** C'est le choix fait pour garder la recherche et l'IA simples. Et ce que tu confies au bouton « IA » sort du VPS si le fournisseur est Anthropic ou OpenAI. Utilise le cadenas pour ce qui est sensible, et active le chiffrement du disque du VPS si ton hébergeur le propose.
 3. **Le titre d'une note verrouillée reste lisible**, ainsi que les fichiers joints à cette note.
 4. **Un seul utilisateur.** Pas de comptes, pas de partage.
-5. **Pas encore de double authentification** (prévue : passkeys).
+5. **Pas encore de passkeys.** La double authentification est un code TOTP, pas une clé physique : elle protège d'un mot de passe volé, pas d'une page d'hameçonnage qui relaierait le code en direct.
 6. **Pas d'audit externe.** Le chiffrement s'appuie sur des briques standard, mais l'ensemble n'a été relu par personne d'autre. Garde une copie de tes clés SSH ailleurs tant que Cairn est jeune.
 
 ## Bonnes pratiques sur le VPS
 
 - SSH par clé uniquement, pare-feu (80, 443 et SSH), mises à jour automatiques, fail2ban.
-- Sauvegardes chaque nuit, copiées hors du VPS (voir [DEPLOIEMENT.md](DEPLOIEMENT.md)). Le coffre y est déjà chiffré.
-- Teste une restauration une fois.
+- Sauvegardes chiffrées chaque nuit, copiées hors du VPS (voir [DEPLOIEMENT.md](DEPLOIEMENT.md), étape 5). La clé privée age reste sur ton Mac, pas seulement dans Cairn.
+- Teste une restauration (`restore.sh --check`) une fois par trimestre.

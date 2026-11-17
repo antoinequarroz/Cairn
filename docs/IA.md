@@ -197,3 +197,15 @@ Plus de détails dans [SECURITE.md](SECURITE.md).
    Ces délais comptent le temps **sans aucune donnée** du fournisseur, pas la durée totale : une longue traduction peut s'écrire pendant plusieurs minutes.
 
    Une erreur qui survient au milieu d'une réponse coupe le texte dans l'app (« La réponse s'est interrompue avant la fin »), et le panneau ne propose alors que ce qui a été reçu. Sa raison est dans les journaux : `docker compose logs cairn | grep '\[ia\]'`. On y lit par exemple `a cessé de répondre` (silence de plus de 150 s ou 120 s en cours de route) ou `a coupé la réponse avant la fin` (connexion fermée sans le signal de fin).
+
+## Interroger toutes ses notes
+
+Dans une discussion, le bouton **Interroger mes notes** (ou « Interroger toutes mes notes avec l'IA » dans ⌘K, « Interroger ce dossier » dans un dossier) active la recherche dans les notes : toutes, ou celles d'un dossier et de ses sous-dossiers.
+
+À chaque message, Cairn garde les mots utiles de la question (« qu'est-ce que j'ai noté sur Caddy ? » cherche « caddy »), interroge l'index plein texte SQLite (FTS5, pas de base vectorielle), et envoie à l'IA les 8 notes qui correspondent le mieux : entières si elles sont courtes, sinon leur début et les passages autour des mots cherchés (48 000 caractères au plus en tout). Une relance (« et le port ? ») reprend les mots de la question d'avant si elle trouve trop peu.
+
+L'IA répond à partir de ces notes et les cite en lien ([Config Caddy](/notes/…)) ; un clic ouvre la note. Sous la réponse, les notes citées s'affichent comme sources, les autres notes lues sont repliées.
+
+Une note chiffrée (cadenas) n'est jamais cherchée ni envoyée : son contenu est illisible pour le serveur, et la requête l'écarte en plus explicitement.
+
+![Réponse avec sources](img/ia-mes-notes.png)

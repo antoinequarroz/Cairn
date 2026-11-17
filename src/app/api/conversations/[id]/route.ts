@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { stopChat } from "@/server/chat";
 import { deleteConversation, getConversation, listMessages, updateConversation } from "@/server/db";
-import { body, fail, folderRef, MAX_TITLE, noteIds, text } from "@/server/http";
+import { body, fail, folderRef, MAX_TITLE, noteIds, notesSearchRef, text } from "@/server/http";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -18,8 +18,9 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const title = text(b.title, MAX_TITLE);
   const folderId = folderRef(b.folderId);
   const ids = noteIds(b.contextNoteIds);
-  if (title === null || folderId === false || ids === null) return fail("Discussion invalide");
-  const conversation = updateConversation((await params).id, { title, folderId, contextNoteIds: ids });
+  const notesSearch = notesSearchRef(b.notesSearch);
+  if (title === null || folderId === false || ids === null || notesSearch === false) return fail("Discussion invalide");
+  const conversation = updateConversation((await params).id, { title, folderId, contextNoteIds: ids, notesSearch });
   return conversation ? NextResponse.json({ conversation }) : fail("Discussion introuvable", 404);
 }
 

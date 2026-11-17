@@ -1,7 +1,9 @@
 import "server-only";
 import { buildChatPrompt, titleFrom, type ChatNote } from "@/lib/chat";
+import type { ChatSource } from "@/lib/types";
 import { AiError, aiStatus, streamCompletion } from "./ai";
-import { addMessage, conversationNonce, db, folderChain, getConversation, getNote, listMessages, setConversationNonce, updateConversation, updateMessage } from "./db";
+import { addMessage, conversationNonce, db, folderChain, getConversation, getFolder, getNote, listMessages, setConversationNonce, setMessageSources, updateConversation, updateMessage } from "./db";
+import { findNotes } from "./note-search";
 
 /** An error whose message is safe to show, in French, with the HTTP status to send it with. */
 export class ChatError extends Error {
@@ -27,6 +29,8 @@ export type ChatTurnResult = {
   assistantMessageId: string;
   /** Titles of the pinned notes the AI could not read: locked, deleted, or too long to fit. */
   skippedNotes: string[];
+  /** "Mes notes" mode: the notes found and given to the AI for this answer. Null when the mode is off. */
+  sources: ChatSource[] | null;
 };
 
 /**
@@ -63,8 +67,23 @@ export async function sendChatMessage(conversationId: string, content: string): 
     if (note.encrypted) skippedNotes.push(note.title || "Sans titre");
     else notes.push({ id: note.id, title: note.title, content: note.content });
   }
+  const history = listMessages(conversationId);
+
+  // "Mes notes" mode: the notes that match this message, found in the index. Locked notes are never
+  // among them (src/server/note-search.ts). Pinned notes are already there in full.
+  let search: { scope: string; found: ReturnType<typeof findNotes>["notes"] } | undefined;
+  let sources: ChatSource[] | null = null;
+  if (conversation.notesSearch) {
+    const folder = conversation.notesSearch.folderId ? getFolder(conversation.notesSearch.folderId) : null;
+    const previous = history.filter((m) => m.role === "user" && m.id !== user.id).at(-1)?.content;
+    const { notes: found } = findNotes(content, { folderId: folder?.id ?? null, exclude: notes.map((n) => n.id), previous });
+    search = { scope: folder ? `the folder "${folder.name}" and its subfolders` : "all the user's notes", found };
+    sources = found.map((n) => ({ id: n.id, title: n.title }));
+    setMessageSources(assistant.id, sources);
+  }
+
   const nonce = conversationNonce(conversationId);
-  const prompt = buildChatPrompt({ folders: folderChain(conversation.folderId), notes, history: listMessages(conversationId) }, nonce || undefined);
+  const prompt = buildChatPrompt({ folders: folderChain(conversation.folderId), notes, history, search }, nonce || undefined);
   if (prompt.nonce !== nonce) setConversationNonce(conversationId, prompt.nonce);
   skippedNotes.push(...prompt.omittedNotes.map((n) => n.title || "Sans titre"));
 
@@ -136,7 +155,7 @@ export async function sendChatMessage(conversationId: string, content: string): 
     }
   })();
 
-  return { stream, userMessageId: user.id, assistantMessageId: assistant.id, skippedNotes };
+  return { stream, userMessageId: user.id, assistantMessageId: assistant.id, skippedNotes, sources };
 }
 
 /** Stops the answer being written in a discussion. What it already wrote is kept. */

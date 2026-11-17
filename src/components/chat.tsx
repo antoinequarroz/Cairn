@@ -1,18 +1,19 @@
 "use client";
 
-import { ArrowUp, Check, Copy, FilePlus2, FileText, Lock, Paperclip, Square, Trash2, X } from "lucide-react";
+import { ArrowUp, BookOpenText, Check, Copy, FilePlus2, FileText, Lock, Paperclip, Square, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { AiStatus } from "@/lib/ai";
-import { MAX_CHAT_MESSAGE, MAX_CONTEXT_NOTES } from "@/lib/chat";
+import { citedNoteIds, MAX_CHAT_MESSAGE, MAX_CONTEXT_NOTES } from "@/lib/chat";
 import { renderMarkdown } from "@/lib/markdown";
-import { folderPath, useNotes } from "@/lib/notes-store";
-import type { ChatMessage, Conversation, Note } from "@/lib/types";
+import { flattenFolders, folderPath, useNotes } from "@/lib/notes-store";
+import type { ChatMessage, ChatSource, Conversation, Note, NotesSearch } from "@/lib/types";
 import { api, ApiError, cn } from "@/lib/utils";
 import { FolderSelect } from "./folder-select";
 import { Button, inputClass } from "./ui";
+import { Prose } from "./prose";
 
 /** How often a discussion whose answer is being written elsewhere (another tab, a closed one) is read again. */
 const POLL_MS = 1_500;
@@ -83,7 +84,7 @@ export function Chat({ id }: { id: string }) {
   }, [messages]);
 
   const saveConversation = useCallback(
-    async (patch: { title?: string; folderId?: string | null; contextNoteIds?: string[] }) => {
+    async (patch: { title?: string; folderId?: string | null; contextNoteIds?: string[]; notesSearch?: NotesSearch | null }) => {
       try {
         const { conversation: c } = await api<{ conversation: Conversation }>(`/api/conversations/${id}`, { method: "PATCH", json: patch });
         setConversation(c);
@@ -131,6 +132,8 @@ export function Chat({ id }: { id: string }) {
         setMessages((m) => m.map((x) => (x.id === pending.id ? { ...x, id: saved } : x)));
         answerId = saved;
       }
+      const sources = parseSources(res.headers.get("X-Cairn-Sources"));
+      if (sources) setMessages((m) => m.map((x) => (x.id === answerId ? { ...x, sources } : x)));
       const skipped = parseSkipped(res.headers.get("X-Cairn-Skipped-Notes"));
       if (skipped.length)
         toast(`${skipped.length > 1 ? `${skipped.length} notes épinglées n'ont pas été lues` : "Une note épinglée n'a pas été lue"} par l'IA`, {
@@ -248,6 +251,7 @@ export function Chat({ id }: { id: string }) {
           <span className="max-md:hidden">{pinned.length ? `${pinned.length} note${pinned.length > 1 ? "s" : ""} en contexte` : "Ajouter des notes"}</span>
           {pinned.length > 0 && <span className="md:hidden">{pinned.length}</span>}
         </Button>
+        <NotesSearchSelect value={conversation.notesSearch} onChange={(notesSearch) => saveConversation({ notesSearch })} />
         <div className="ml-auto flex items-center gap-1.5">
           {status && <span className="truncate text-[12px] text-ink-3 max-md:hidden">{status.ready ? status.label : "Aucune IA configurée"}</span>}
           <Button size="sm" variant="ghost" onClick={del} aria-label="Supprimer la discussion" title="Supprimer">
@@ -289,10 +293,18 @@ export function Chat({ id }: { id: string }) {
         <div className="mx-auto flex max-w-[760px] flex-col gap-5">
           {!messages.length && (
             <div className="py-10 text-center">
-              <p className="font-display text-[22px] leading-none">Pose ta question</p>
-              <p className="mx-auto mt-2 max-w-[420px] text-[13px] text-ink-3">
-                L&apos;IA lit les consignes du projet et les notes épinglées. La discussion est enregistrée dans {path ? <b className="font-medium text-ink-2">{path}</b> : "tes notes"}, même si tu fermes l&apos;onglet pendant la réponse.
-              </p>
+              <p className="font-display text-[22px] leading-none">{conversation.notesSearch ? "Qu'as-tu noté sur… ?" : "Pose ta question"}</p>
+              {conversation.notesSearch ? (
+                <p className="mx-auto mt-2 max-w-[440px] text-[13px] text-ink-3">
+                  À chaque message, l&apos;IA cherche dans{" "}
+                  <b className="font-medium text-ink-2">{conversation.notesSearch.folderId ? folderPath(folders, conversation.notesSearch.folderId) || "ce dossier" : "toutes tes notes"}</b> et cite les notes qu&apos;elle utilise. Les notes
+                  chiffrées ne sont jamais lues.
+                </p>
+              ) : (
+                <p className="mx-auto mt-2 max-w-[420px] text-[13px] text-ink-3">
+                  L&apos;IA lit les consignes du projet et les notes épinglées. La discussion est enregistrée dans {path ? <b className="font-medium text-ink-2">{path}</b> : "tes notes"}, même si tu fermes l&apos;onglet pendant la réponse.
+                </p>
+              )}
             </div>
           )}
           {messages.map((m) => (m.role === "user" ? <UserMessage key={m.id} message={m} /> : <AssistantMessage key={m.id} message={m} onSave={() => saveAsNote(m)} />))}
@@ -339,6 +351,93 @@ export function Chat({ id }: { id: string }) {
   );
 }
 
+function parseSources(header: string | null): ChatSource[] | null {
+  if (!header) return null;
+  try {
+    const v: unknown = JSON.parse(decodeURIComponent(header));
+    return Array.isArray(v) ? v.filter((x): x is ChatSource => !!x && typeof x.id === "string" && typeof x.title === "string") : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * "Mes notes" mode, as a native select: off, all the notes, or one folder's (subfolders included).
+ * Native, like the folder picker: it works the same with a mouse, a keyboard and on the iPhone.
+ */
+function NotesSearchSelect({ value, onChange }: { value: NotesSearch | null; onChange: (v: NotesSearch | null) => void }) {
+  const { folders } = useNotes();
+  const current = value ? (value.folderId ? `f:${value.folderId}` : "all") : "off";
+  const label = !value ? "Interroger mes notes" : value.folderId ? `Notes de ${folders.find((f) => f.id === value.folderId)?.name ?? "ce dossier"}` : "Toutes mes notes";
+  return (
+    <label
+      className={cn("relative flex h-7 min-w-0 max-w-[220px] items-center gap-1.5 rounded-lg px-2 text-[12.5px] hover:bg-ink/5", value ? "text-accent" : "text-ink-2 hover:text-ink")}
+      title="À chaque message, l'IA cherche dans tes notes et cite celles qu'elle utilise. Les notes chiffrées ne sont jamais lues."
+    >
+      <BookOpenText className="size-3.5 shrink-0" />
+      <span className="truncate max-md:hidden">{label}</span>
+      <select
+        aria-label="Chercher dans mes notes"
+        value={current}
+        onChange={(e) => {
+          const v = e.target.value;
+          onChange(v === "off" ? null : v === "all" ? { folderId: null } : { folderId: v.slice(2) });
+        }}
+        className="absolute inset-0 cursor-pointer opacity-0"
+      >
+        <option value="off">Ne pas chercher dans mes notes</option>
+        <option value="all">Chercher dans toutes mes notes</option>
+        {flattenFolders(folders).map(({ folder, depth }) => (
+          <option key={folder.id} value={`f:${folder.id}`}>
+            {`${"   ".repeat(depth)}${folder.name}`}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/**
+ * The notes an answer in "Mes notes" mode was given: the ones it links to first, as sources, then
+ * how many others it read. A link to a note that was not given is not listed: it was not read.
+ */
+function Sources({ message }: { message: ChatMessage }) {
+  const sources = message.sources;
+  if (!sources || message.state === "streaming") return null;
+  if (!sources.length) return <p className="text-[12px] text-ink-3">Aucune note ne correspondait à cette question.</p>;
+  const cited = citedNoteIds(message.content);
+  const used = cited.map((id) => sources.find((s) => s.id === id)).filter((s) => !!s);
+  const others = sources.filter((s) => !cited.includes(s.id));
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-ink-3">
+      {used.length > 0 && <span>Sources</span>}
+      {used.map((s) => (
+        <Link key={s.id} href={`/notes/${s.id}`} className="flex items-center gap-1 rounded-md border border-line px-1.5 py-0.5 text-ink-2 hover:border-accent/50 hover:text-ink">
+          <FileText className="size-3" />
+          {s.title || "Sans titre"}
+        </Link>
+      ))}
+      {others.length > 0 && (
+        <details className="group/others">
+          <summary className="cursor-pointer list-none hover:text-ink">
+            {used.length ? "+ " : ""}
+            {others.length} note{others.length > 1 ? "s" : ""} lue{others.length > 1 ? "s" : ""}
+            {used.length ? "" : " par l'IA"}
+          </summary>
+          <span className="mt-1 flex flex-wrap gap-1.5">
+            {others.map((s) => (
+              <Link key={s.id} href={`/notes/${s.id}`} className="flex items-center gap-1 rounded-md border border-line px-1.5 py-0.5 hover:text-ink">
+                <FileText className="size-3" />
+                {s.title || "Sans titre"}
+              </Link>
+            ))}
+          </span>
+        </details>
+      )}
+    </div>
+  );
+}
+
 function parseSkipped(header: string | null): string[] {
   if (!header) return [];
   try {
@@ -362,9 +461,10 @@ function AssistantMessage({ message, onSave }: { message: ChatMessage; onSave: (
   const streaming = message.state === "streaming";
   return (
     <div className="group flex flex-col gap-1.5">
-      {html ? <article className="prose-cairn" dangerouslySetInnerHTML={{ __html: html }} /> : streaming && <p className="animate-pulse text-[13.5px] text-ink-3">L&apos;IA réfléchit…</p>}
+      {html ? <Prose html={html} /> : streaming && <p className="animate-pulse text-[13.5px] text-ink-3">L&apos;IA réfléchit…</p>}
       {message.state === "error" && <p className="rounded-lg border border-danger/30 bg-danger/5 px-3 py-2 text-[13px] text-danger">{message.error ?? "La réponse a échoué"}</p>}
       {message.state === "stopped" && <p className="text-[12px] text-ink-3">Réponse arrêtée</p>}
+      <Sources message={message} />
       {!streaming && message.content && (
         <div className="flex items-center gap-1 text-[12px] text-ink-3 opacity-70 transition-opacity group-hover:opacity-100">
           {message.model && <span className="mr-1">{message.model}</span>}

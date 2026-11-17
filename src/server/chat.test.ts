@@ -159,3 +159,36 @@ describe("discussion : contexte", () => {
     ]);
   });
 });
+
+describe("discussion : mode « Mes notes »", () => {
+  it("cherche dans les notes à chaque message, envoie celles trouvées, jamais une note chiffrée, et garde les sources", async () => {
+    const lisible = createNote({ title: "Sauvegardes", content: "Les sauvegardes partent à 3h vers Swiss Backup." });
+    const secrete = createNote({ title: "Sauvegardes : clé age", content: "x" });
+    updateNote(secrete.id, { content: "bloc-chiffre-sauvegardes", encrypted: true });
+    const c = createConversation({ notesSearch: { folderId: null } });
+
+    const bodies = provider([text(`À 3h, voir [Sauvegardes](/notes/${lisible.id}).`), END]);
+    const turn = await sendChatMessage(c.id, "Qu'est-ce que j'ai noté sur les sauvegardes ?");
+    expect(turn.sources).toEqual([{ id: lisible.id, title: "Sauvegardes" }]);
+    await new Response(turn.stream).text();
+    const messages = await settle(c.id);
+    expect(messages[1].sources).toEqual([{ id: lisible.id, title: "Sauvegardes" }]);
+
+    const sent = JSON.stringify(bodies[0]);
+    expect(sent).toContain("Swiss Backup");
+    expect(sent).not.toContain("bloc-chiffre-sauvegardes");
+    expect(sent).not.toContain(secrete.id);
+    expect(bodies[0].messages[0].content).toContain('"My notes" mode is on');
+  });
+
+  it("sans le mode, ne cherche rien", async () => {
+    createNote({ title: "Mot de passe Wi-Fi", content: "invites-2026" });
+    const c = createConversation({});
+    const bodies = provider([text("Ok"), END]);
+    const turn = await sendChatMessage(c.id, "Quel est le mot de passe Wi-Fi ?");
+    expect(turn.sources).toBeNull();
+    await new Response(turn.stream).text();
+    expect(JSON.stringify(bodies[0])).not.toContain("invites-2026");
+    expect((await settle(c.id))[1].sources).toBeUndefined();
+  });
+});

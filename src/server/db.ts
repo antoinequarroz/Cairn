@@ -3,7 +3,8 @@ import Database from "better-sqlite3";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import type { ChatMessage, Conversation, ConversationSummary, FileInfo, Folder, Note, NoteSummary, VaultItemRow, VaultMeta } from "@/lib/types";
+import { purgeSearchIndex, setupSearchIndex } from "./search-index";
+import type { ChatMessage, ChatSource, Conversation, NotesSearch, ConversationSummary, FileInfo, Folder, Note, NoteSummary, VaultItemRow, VaultMeta } from "@/lib/types";
 
 export const DATA_DIR = path.resolve(process.env.DATA_DIR ?? "./data");
 export const FILES_DIR = path.join(DATA_DIR, "files");
@@ -15,6 +16,9 @@ export function db() {
   fs.mkdirSync(FILES_DIR, { recursive: true });
   const conn = new Database(path.join(DATA_DIR, "cairn.db"));
   conn.pragma("journal_mode = WAL");
+  // Deleted content is overwritten in the file, not just marked free: a note locked with the
+  // padlock must not leave its clear text behind (in the notes table or in the search index).
+  conn.pragma("secure_delete = on");
   conn.exec(`
     create table if not exists notes (
       id text primary key,
@@ -101,8 +105,14 @@ export function db() {
   conn.exec("create index if not exists notes_folder on notes (folder_id)");
   const conversationColumns = conn.prepare("pragma table_info(conversations)").all() as { name: string }[];
   if (!conversationColumns.some((c) => c.name === "prompt_nonce")) conn.exec("alter table conversations add column prompt_nonce text not null default ''");
+  // "Mes notes" mode: the AI searches the notes (all of them, or one folder's) with each message.
+  if (!conversationColumns.some((c) => c.name === "notes_search")) conn.exec("alter table conversations add column notes_search integer not null default 0; alter table conversations add column notes_search_folder_id text");
+  // The notes found for an answer in "Mes notes" mode, as JSON [{ id, title }].
+  const messageColumns = conn.prepare("pragma table_info(messages)").all() as { name: string }[];
+  if (!messageColumns.some((c) => c.name === "sources")) conn.exec("alter table messages add column sources text");
   // An answer still marked as streaming when the server starts was cut by a restart: nothing writes it anymore.
   conn.prepare("update messages set state = 'stopped' where state = 'streaming'").run();
+  setupSearchIndex(conn);
   globalForDb.__cairnDb = conn;
   return conn;
 }
@@ -140,6 +150,7 @@ export function updateNote(id: string, patch: { title?: string; content?: string
   db()
     .prepare("update notes set title = ?, content = ?, encrypted = ?, folder_id = ?, updated_at = ? where id = ?")
     .run(patch.title ?? cur.title, patch.content ?? cur.content, (patch.encrypted ?? cur.encrypted) ? 1 : 0, patch.folderId === undefined ? cur.folderId : patch.folderId, touched ? now() : cur.updatedAt, id);
+  if (patch.encrypted && !cur.encrypted) purgeSearchIndex(db());
   return getNote(id);
 }
 
@@ -178,6 +189,9 @@ export function getFile(id: string): FileInfo | null {
   const r = db().prepare("select id, name, mime, size, created_at from files where id = ?").get(id) as { id: string; name: string; mime: string; size: number; created_at: string } | undefined;
   return r ? { id: r.id, name: r.name, mime: r.mime, size: r.size, createdAt: r.created_at } : null;
 }
+
+/** Forgets a file. The caller removes it from FILES_DIR. */
+export const deleteFile = (id: string) => db().prepare("delete from files where id = ?").run(id).changes > 0;
 
 export function startUpload(f: { name: string; mime: string; size: number }) {
   const id = newId();
@@ -278,6 +292,8 @@ export function deleteFolder(id: string) {
   db().transaction(() => {
     db().prepare("update notes set folder_id = ? where folder_id = ?").run(cur.parentId, id);
     db().prepare("update conversations set folder_id = ? where folder_id = ?").run(cur.parentId, id);
+    // A discussion that searched this folder now searches its parent (all the notes, at the root).
+    db().prepare("update conversations set notes_search_folder_id = ? where notes_search_folder_id = ?").run(cur.parentId, id);
     db().prepare("update folders set parent_id = ? where parent_id = ?").run(cur.parentId, id);
     db().prepare("delete from folders where id = ?").run(id);
   })();
@@ -286,7 +302,17 @@ export function deleteFolder(id: string) {
 
 // --- Discussions with the AI ---------------------------------------------------------------------
 
-type ConversationRow = { id: string; folder_id: string | null; title: string; context_note_ids: string; prompt_nonce: string; created_at: string; updated_at: string };
+type ConversationRow = {
+  id: string;
+  folder_id: string | null;
+  title: string;
+  context_note_ids: string;
+  prompt_nonce: string;
+  notes_search: number;
+  notes_search_folder_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
 
 const parseIds = (json: string): string[] => {
   try {
@@ -302,6 +328,7 @@ const toConversation = (r: ConversationRow): Conversation => ({
   folderId: r.folder_id,
   title: r.title,
   contextNoteIds: parseIds(r.context_note_ids),
+  notesSearch: r.notes_search ? { folderId: r.notes_search_folder_id } : null,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 });
@@ -316,12 +343,12 @@ export function getConversation(id: string): Conversation | null {
   return r ? toConversation(r) : null;
 }
 
-export function createConversation(input: { folderId?: string | null; title?: string; contextNoteIds?: string[] }): Conversation {
+export function createConversation(input: { folderId?: string | null; title?: string; contextNoteIds?: string[]; notesSearch?: NotesSearch | null }): Conversation {
   const t = now();
   const id = newId();
   db()
-    .prepare("insert into conversations (id, folder_id, title, context_note_ids, prompt_nonce, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?)")
-    .run(id, input.folderId ?? null, input.title ?? "", JSON.stringify(input.contextNoteIds ?? []), crypto.randomBytes(8).toString("hex"), t, t);
+    .prepare("insert into conversations (id, folder_id, title, context_note_ids, prompt_nonce, notes_search, notes_search_folder_id, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .run(id, input.folderId ?? null, input.title ?? "", JSON.stringify(input.contextNoteIds ?? []), crypto.randomBytes(8).toString("hex"), input.notesSearch ? 1 : 0, input.notesSearch?.folderId ?? null, t, t);
   return getConversation(id)!;
 }
 
@@ -329,14 +356,15 @@ export function createConversation(input: { folderId?: string | null; title?: st
  * `folderId`: undefined keeps the folder, null moves the discussion to the root. Moving it does not
  * change its date: it was not written in.
  */
-export function updateConversation(id: string, patch: { title?: string; folderId?: string | null; contextNoteIds?: string[] }): Conversation | null {
+export function updateConversation(id: string, patch: { title?: string; folderId?: string | null; contextNoteIds?: string[]; notesSearch?: NotesSearch | null }): Conversation | null {
   const cur = getConversation(id);
   if (!cur) return null;
   const ids = patch.contextNoteIds ?? cur.contextNoteIds;
+  const search = patch.notesSearch === undefined ? cur.notesSearch : patch.notesSearch;
   const touched = (patch.title !== undefined && patch.title !== cur.title) || JSON.stringify(ids) !== JSON.stringify(cur.contextNoteIds);
   db()
-    .prepare("update conversations set title = ?, folder_id = ?, context_note_ids = ?, updated_at = ? where id = ?")
-    .run(patch.title ?? cur.title, patch.folderId === undefined ? cur.folderId : patch.folderId, JSON.stringify(ids), touched ? now() : cur.updatedAt, id);
+    .prepare("update conversations set title = ?, folder_id = ?, context_note_ids = ?, notes_search = ?, notes_search_folder_id = ?, updated_at = ? where id = ?")
+    .run(patch.title ?? cur.title, patch.folderId === undefined ? cur.folderId : patch.folderId, JSON.stringify(ids), search ? 1 : 0, search?.folderId ?? null, touched ? now() : cur.updatedAt, id);
   return getConversation(id);
 }
 
@@ -357,7 +385,27 @@ export function deleteConversation(id: string) {
   })();
 }
 
-type MessageRow = { id: string; conversation_id: string; role: "user" | "assistant"; content: string; state: ChatMessage["state"]; error: string | null; model: string | null; created_at: string };
+type MessageRow = {
+  id: string;
+  conversation_id: string;
+  role: "user" | "assistant";
+  content: string;
+  state: ChatMessage["state"];
+  error: string | null;
+  model: string | null;
+  sources: string | null;
+  created_at: string;
+};
+
+const parseSources = (json: string | null): ChatSource[] | null => {
+  if (!json) return null;
+  try {
+    const v: unknown = JSON.parse(json);
+    return Array.isArray(v) ? v.filter((x): x is ChatSource => !!x && typeof x.id === "string" && typeof x.title === "string") : null;
+  } catch {
+    return null;
+  }
+};
 
 const toMessage = (r: MessageRow): ChatMessage => ({
   id: r.id,
@@ -366,6 +414,7 @@ const toMessage = (r: MessageRow): ChatMessage => ({
   state: r.state,
   ...(r.error ? { error: r.error } : {}),
   ...(r.model ? { model: r.model } : {}),
+  ...(r.sources ? { sources: parseSources(r.sources) ?? [] } : {}),
   createdAt: r.created_at,
 });
 
@@ -390,6 +439,11 @@ export function addMessage(conversationId: string, m: { role: ChatMessage["role"
     db().prepare("update conversations set updated_at = ? where id = ?").run(t, conversationId);
   })();
   return getMessage(id)!;
+}
+
+/** Records the notes found for an answer in "Mes notes" mode. */
+export function setMessageSources(id: string, sources: ChatSource[]) {
+  db().prepare("update messages set sources = ? where id = ?").run(JSON.stringify(sources), id);
 }
 
 export function updateMessage(id: string, patch: { content?: string; state?: ChatMessage["state"]; error?: string | null }) {

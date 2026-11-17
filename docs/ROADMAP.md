@@ -13,16 +13,20 @@ Un seul endroit, chez moi, pour ce que j'écris et ce que je dois garder secret.
 - [x] Mot de passe de l'app, recherche ⌘K, thème clair et sombre
 - [x] API pour Hermes et Claude Code
 - [x] Docker, Caddy, sauvegardes, installable en PWA
+- [x] Sauvegardes chiffrées (age) chaque nuit, copiées hors du VPS, 30 jours, script de restauration testé
+- [x] Double authentification (TOTP) avec codes de secours
 
 ## Étape 2 : un vrai outil de notes
 
 - [x] Projets, dossiers et sous-dossiers, glisser-déposer dans la barre latérale
 - [ ] Sous-pages, favoris, corbeille
-- [ ] Recherche dans tout le texte (SQLite FTS5)
+- [x] Recherche dans tout le texte (SQLite FTS5)
 - [ ] Liens entre notes (`[[titre]]`) et rétroliens
-- [ ] Éditeur plus riche : raccourcis Markdown, commande `/`, cases à cocher cliquables, coloration du code
+- [x] Barre de mise en forme, raccourcis clavier et menu `/` pour écrire sans connaître le Markdown
+- [ ] Éditeur plus riche : cases à cocher cliquables, coloration du code
 - [ ] Historique des versions d'une note
-- [ ] Export et import (dossier de fichiers `.md`)
+- [x] Import (export Notion, dossier de fichiers `.md`)
+- [ ] Export (dossier de fichiers `.md`)
 - [ ] Hors ligne : lire et écrire sans réseau, synchroniser ensuite
 
 ## Étape 3 : l'IA
@@ -32,14 +36,14 @@ Un seul endroit, chez moi, pour ce que j'écris et ce que je dois garder secret.
 - [x] Réglages > IA dans l'app : clés d'API et Hermes, choix du fournisseur et du modèle, clés chiffrées sur le serveur
 - [x] Discussions avec l'IA rangées par projet et dossier, consignes par projet, notes épinglées en contexte, réponses enregistrées côté serveur
 - [ ] Choisir le modèle par discussion
-- [ ] Rechercher dans les discussions
+- [x] Rechercher dans les discussions
 - [ ] Créer une note ou un fichier à partir d'une consigne
 - [ ] Skill Hermes et commande Claude Code pour Cairn
 - [ ] Questions sur l'ensemble des notes
 
 ## Étape 4 : un coffre complet
 
-- [ ] Passkeys et double authentification pour la connexion
+- [ ] Passkeys pour la connexion (la double authentification TOTP est faite)
 - [ ] Changer le mot de passe maître
 - [ ] Codes à usage unique (TOTP)
 - [ ] Générer une paire de clés SSH dans le coffre

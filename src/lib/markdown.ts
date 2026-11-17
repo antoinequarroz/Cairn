@@ -32,6 +32,16 @@ export function isOwnFile(src: string, origin: string) {
   }
 }
 
+/** True when `href` opens a note of this app ("/notes/abc"), resolved first like isOwnFile. */
+export function isNoteLink(href: string, origin: string) {
+  try {
+    const url = new URL(href, origin);
+    return url.origin === origin && /^\/notes\/[\w-]+$/.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
 // What Markdown itself produces, and no more. An allow-list, because every tag or attribute that
 // makes the browser fetch something (style, srcset, poster, <source>, SVG <image>, <input type=image>…)
 // is a way out for the text, and a deny-list always misses one.
@@ -80,7 +90,8 @@ export function renderMarkdown(source: string, { remoteMedia = true }: { remoteM
   }
   for (const el of fragment.querySelectorAll("a")) {
     el.setAttribute("rel", "noreferrer noopener");
-    el.setAttribute("target", "_blank");
+    // A link to a note ([Config Caddy](/notes/abc), as the AI cites them) stays in the app; any other opens apart.
+    if (!isNoteLink(el.getAttribute("href") ?? "", location.origin)) el.setAttribute("target", "_blank");
   }
   const box = doc.createElement("div");
   box.append(fragment);
@@ -91,4 +102,13 @@ export function renderMarkdown(source: string, { remoteMedia = true }: { remoteM
 export function markdownForFile(name: string, mime: string, url: string) {
   const label = name.replace(/[\[\]]/g, "");
   return /^(image|video|audio)\//.test(mime) ? `![${label}](${url})` : `[${label}](${url})`;
+}
+
+const TERMINAL = /^(bash|sh|shell|zsh|console|terminal)$/i;
+
+/** The name shown on a code block: "Terminal" for shell code, else the language Markdown gave it. */
+export function codeLabel(className: string) {
+  const lang = className.match(/language-([\w+#-]+)/)?.[1] ?? "";
+  if (!lang) return "Code";
+  return TERMINAL.test(lang) ? "Terminal" : lang;
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { MAX_CONTEXT_NOTES } from "@/lib/chat";
+import type { NotesSearch } from "@/lib/types";
 import { getFolder } from "./db";
 
 export const fail = (error: string, status = 400) => NextResponse.json({ error }, { status });
@@ -30,4 +31,12 @@ export function noteIds(value: unknown): string[] | undefined | null {
   if (value === undefined) return undefined;
   if (!Array.isArray(value) || value.length > MAX_CONTEXT_NOTES || !value.every((v) => typeof v === "string" && v.length <= 64)) return null;
   return [...new Set(value as string[])];
+}
+
+/** "Mes notes" mode: `undefined` when absent, `null` to turn it off, `{ folderId }` (null: all the notes), or `false` when invalid. */
+export function notesSearchRef(value: unknown): NotesSearch | null | undefined | false {
+  if (value === undefined || value === null) return value;
+  if (typeof value !== "object" || Array.isArray(value)) return false;
+  const folderId = folderRef((value as Record<string, unknown>).folderId ?? null);
+  return folderId === false || folderId === undefined ? false : { folderId };
 }

@@ -1,7 +1,9 @@
 import { cookies } from "next/headers";
 import { safeEqual, SESSION_COOKIE } from "@/server/auth";
-import { LAMIO_STATE_COOKIE, lamioConfig, lamioUser } from "@/server/lamio";
+import { LAMIO_OK_COOKIE, LAMIO_OK_MAX_AGE, LAMIO_STATE_COOKIE, lamioConfig, lamioPass, lamioUser } from "@/server/lamio";
 import { currentSessionToken, SESSION_MAX_AGE } from "@/server/password";
+import { isLocked } from "@/server/throttle";
+import { twoFactorRequired } from "@/server/two-factor";
 
 export const dynamic = "force-dynamic";
 
@@ -9,10 +11,10 @@ const secure = () => (process.env.NODE_ENV === "production" ? "; Secure" : "");
 const clearState = () => `${LAMIO_STATE_COOKIE}=; Path=/api/auth/lamio; HttpOnly; SameSite=Lax; Max-Age=0${secure()}`;
 
 // Relative addresses stay on this app whatever sits in front of it.
-function go(location: string, session?: string) {
+function go(location: string, cookie?: string) {
   const headers = new Headers({ Location: location, "Cache-Control": "no-store" });
   headers.append("Set-Cookie", clearState());
-  if (session) headers.append("Set-Cookie", `${SESSION_COOKIE}=${session}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MAX_AGE}${secure()}`);
+  if (cookie) headers.append("Set-Cookie", `${cookie}; HttpOnly; SameSite=Lax${secure()}`);
   return new Response(null, { status: 302, headers });
 }
 
@@ -25,10 +27,13 @@ export async function GET(req: Request) {
   const code = params.get("code");
   const expected = (await cookies()).get(LAMIO_STATE_COOKIE)?.value;
   // The state proves this browser started the sign-in: a link forged elsewhere has no matching cookie.
-  if (!state || !code || !expected || !safeEqual(state, expected)) return go("/login?lamio=refus");
+  if (!state || !code || !expected || !safeEqual(state, expected) || isLocked()) return go("/login?lamio=refus");
 
   const user = await lamioUser(config, code);
   if (!user) return go("/login?lamio=refus");
   console.log(`[lamio] connexion de ${user.email}`);
-  return go("/", (await currentSessionToken()) ?? undefined);
+  // Lamio stands in for the password, not for the second factor: the code is asked next.
+  if (twoFactorRequired()) return go("/login?lamio=code", `${LAMIO_OK_COOKIE}=${lamioPass(config.secret)}; Path=/api/auth/login; Max-Age=${LAMIO_OK_MAX_AGE}`);
+  const session = await currentSessionToken();
+  return go("/", session ? `${SESSION_COOKIE}=${session}; Path=/; Max-Age=${SESSION_MAX_AGE}` : undefined);
 }

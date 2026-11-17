@@ -145,6 +145,18 @@ body::before {
   animation: rise 320ms var(--ease-out) both;
 }
 
+/* Small menus that open in place (the "/" menu, the formatting help). */
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+.pop-in {
+  transform-origin: top left;
+  animation: pop 140ms var(--ease-out) both;
+}
+
 /* Base UI dialog motion */
 .dialog-backdrop {
   transition: opacity 200ms var(--ease-out);
@@ -176,7 +188,8 @@ body::before {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rise {
+  .rise,
+  .pop-in {
     animation: none;
   }
   .dialog-popup[data-starting-style],
@@ -262,6 +275,23 @@ body::before {
   text-decoration-color: color-mix(in oklab, var(--accent) 40%, transparent);
   text-underline-offset: 3px;
 }
+.prose-cairn details {
+  margin: 0.8em 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 0.5em 0.9em;
+}
+.prose-cairn summary {
+  cursor: pointer;
+  font-weight: 500;
+}
+.prose-cairn details[open] > summary {
+  margin-bottom: 0.4em;
+}
+.prose-cairn details > :last-child {
+  margin-bottom: 0.2em;
+}
 .prose-cairn blockquote {
   border-left: 3px solid var(--accent);
   padding-left: 1em;
@@ -286,6 +316,53 @@ body::before {
   border: 0;
   background: none;
   padding: 0;
+}
+/* Code blocks: a header with the language and a copy button (added by <Prose>). */
+.prose-cairn .code-block {
+  margin: 0.8em 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.prose-cairn .code-block pre {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  padding-top: 0.5em;
+}
+.prose-cairn .code-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35em 0.45em 0 1em;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.prose-cairn .code-copy {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease, transform 160ms var(--ease-out);
+}
+.prose-cairn .code-copy:hover {
+  background: color-mix(in oklab, var(--ink) 6%, transparent);
+  color: var(--ink);
+}
+.prose-cairn .code-copy:active {
+  transform: scale(0.94);
+}
+.prose-cairn .code-copy:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--accent) 50%, transparent);
+}
+.prose-cairn .code-copy[data-copied="true"] {
+  color: var(--ok);
 }
 .prose-cairn img,
 .prose-cairn video {
