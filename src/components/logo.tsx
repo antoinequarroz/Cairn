@@ -1,13 +1,16 @@
 import { cn } from "@/lib/utils";
 
-/** A cairn: three stacked stones, the top one in the accent colour. */
+/**
+ * Cairn's « C », from the Postmelo identity kit, in its light and dark variants.
+ * Both images are in the page; CSS shows the one for the system theme (.theme-light / .theme-dark in globals.css).
+ */
 export function Logo({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 28 28" className={cn("size-7", className)} aria-hidden>
-      <rect width="28" height="28" rx="8" fill="var(--ink)" />
-      <rect x="5.5" y="17.6" width="17" height="4.9" rx="2.45" fill="var(--bg)" opacity=".55" />
-      <rect x="8" y="11.9" width="12" height="4.6" rx="2.3" fill="var(--bg)" opacity=".8" />
-      <rect x="10.6" y="6.2" width="6.8" height="4.6" rx="2.3" fill="var(--accent)" />
-    </svg>
+    <span aria-hidden className={cn("relative inline-block size-7 shrink-0", className)}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/brand/cairn/icon-light-128.png" alt="" width={128} height={128} draggable={false} className="theme-light absolute inset-0 size-full" />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/brand/cairn/icon-dark-128.png" alt="" width={128} height={128} draggable={false} className="theme-dark absolute inset-0 size-full" />
+    </span>
   );
 }
