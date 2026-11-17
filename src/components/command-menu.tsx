@@ -1,7 +1,7 @@
 "use client";
 
 import { Command } from "cmdk";
-import { FileText, Folder as FolderIcon, FolderPlus, Import, KeyRound, Loader2, Lock, MessageSquarePlus, MessagesSquare, Plus, Settings } from "lucide-react";
+import { BookOpenText, FileText, Folder as FolderIcon, FolderPlus, Import, KeyRound, Loader2, Lock, MessageSquarePlus, MessagesSquare, Plus, Settings } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { flattenFolders, folderPath, folderScope, useNotes } from "@/lib/notes-store";
@@ -65,6 +65,11 @@ export function CommandMenu() {
   const actions = [
     { label: "Nouvelle note", icon: <Plus className="size-4" />, hint: "N", run: () => newNote(folderId || null) },
     { label: "Nouvelle discussion avec l'IA", icon: <MessageSquarePlus className="size-4" />, run: () => newConversation(folderId || null) },
+    {
+      label: folderId ? "Interroger les notes de ce dossier avec l'IA" : "Interroger toutes mes notes avec l'IA",
+      icon: <BookOpenText className="size-4" />,
+      run: () => newConversation(folderId || null, undefined, { folderId: folderId || null }),
+    },
     { label: "Nouveau projet", icon: <FolderPlus className="size-4" />, run: () => newFolder() },
     { label: "Importer des notes (Notion, Markdown)", icon: <Import className="size-4" />, run: () => router.push("/settings#import") },
     { label: "Ouvrir le coffre", icon: <KeyRound className="size-4" />, run: () => router.push("/vault") },

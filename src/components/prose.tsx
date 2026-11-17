@@ -1,7 +1,8 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useMemo } from "react";
-import { codeLabel } from "@/lib/markdown";
+import { codeLabel, isNoteLink } from "@/lib/markdown";
 import { cn } from "@/lib/utils";
 
 // Lucide's "copy" and "check", inline: the buttons are added to sanitized HTML, outside React.
@@ -60,8 +61,16 @@ export function withCodeBlocks(html: string) {
 /** Rendered Markdown, with a copy button on every code block. */
 export function Prose({ html, className }: { html: string; className?: string }) {
   const full = useMemo(() => withCodeBlocks(html), [html]);
+  const router = useRouter();
 
   const onClick = async (e: React.MouseEvent) => {
+    // A link to a note opens it in the app, without reloading the page. Cmd/Ctrl-click still opens a tab.
+    const link = (e.target as HTMLElement).closest<HTMLAnchorElement>("a[href]");
+    if (link && !link.target && !e.metaKey && !e.ctrlKey && !e.shiftKey && e.button === 0 && isNoteLink(link.getAttribute("href") ?? "", location.origin)) {
+      e.preventDefault();
+      router.push(new URL(link.href).pathname);
+      return;
+    }
     const button = (e.target as HTMLElement).closest<HTMLButtonElement>(".code-copy");
     if (!button) return;
     const pre = button.closest(".code-block")?.querySelector("pre");

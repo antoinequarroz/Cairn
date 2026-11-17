@@ -26,6 +26,7 @@ export async function POST(req: Request, { params }: Ctx) {
         "X-Cairn-Message-Id": turn.assistantMessageId,
         // Header values are ASCII: the titles go URI-encoded.
         "X-Cairn-Skipped-Notes": encodeURIComponent(JSON.stringify(turn.skippedNotes)),
+        ...(turn.sources ? { "X-Cairn-Sources": encodeURIComponent(JSON.stringify(turn.sources)) } : {}),
       },
     });
   } catch (e) {

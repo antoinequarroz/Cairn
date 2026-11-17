@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, FilePlus2, FileText, Folder as FolderIcon, FolderPlus, Lock, MessageSquarePlus, MessagesSquare, Trash2 } from "lucide-react";
+import { BookOpenText, ChevronRight, FilePlus2, FileText, Folder as FolderIcon, FolderPlus, Lock, MessageSquarePlus, MessagesSquare, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -152,6 +152,10 @@ export function FolderView({ id }: { id: string }) {
           <Button size="sm" variant="secondary" onClick={() => newConversation(id)}>
             <MessageSquarePlus className="size-3.5" />
             Nouvelle discussion
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => newConversation(id, undefined, { folderId: id })} title="Poser une question à l'IA sur les notes de ce dossier">
+            <BookOpenText className="size-3.5" />
+            Interroger ce dossier
           </Button>
           <Button size="sm" variant="ghost" onClick={() => newFolder(id)}>
             <FolderPlus className="size-3.5" />

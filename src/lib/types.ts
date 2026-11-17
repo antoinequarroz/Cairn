@@ -18,8 +18,15 @@ export type ConversationSummary = { id: string; folderId: string | null; title: 
 export type Conversation = ConversationSummary & {
   /** Notes the AI reads with every message of this discussion. */
   contextNoteIds: string[];
+  /** "Mes notes" mode: with each message, the AI searches the notes (one folder's, or all when folderId is null). Off when null. */
+  notesSearch: NotesSearch | null;
   createdAt: string;
 };
+
+export type NotesSearch = { folderId: string | null };
+
+/** A note found for an answer in "Mes notes" mode. */
+export type ChatSource = { id: string; title: string };
 
 /**
  * One message of a discussion. An answer is saved while it streams: `streaming` until it ends,
@@ -33,6 +40,8 @@ export type ChatMessage = {
   error?: string;
   /** Who answered, as shown to the user: "Claude (claude-opus-5-5)". */
   model?: string;
+  /** "Mes notes" mode: the notes the AI was given for this answer, best match first. */
+  sources?: ChatSource[];
   createdAt: string;
 };
 
