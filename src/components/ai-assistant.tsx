@@ -8,6 +8,7 @@ import { appendInline, fitTo, insertBelow, locate, MAX_AI_INSTRUCTION, MAX_AI_TE
 import { renderMarkdown } from "@/lib/markdown";
 import { api, cn } from "@/lib/utils";
 import { Button, inputClass } from "./ui";
+import { Prose } from "./prose";
 
 /** What the assistant needs from the editor. Getters, because the latest text lives in the editor's draft ref. */
 export type AiTarget = {
@@ -473,7 +474,7 @@ export function AiPanel({ ai }: { ai: Ai }) {
       </header>
 
       <div ref={body} aria-busy={streaming} className="scroll-thin min-h-[56px] flex-1 overflow-y-auto px-5 py-2 max-md:px-4">
-        {html ? <article className="prose-cairn" dangerouslySetInnerHTML={{ __html: html }} /> : streaming ? <p className="text-[13px] text-ink-3">En attente de la réponse…</p> : null}
+        {html ? <Prose html={html} /> : streaming ? <p className="text-[13px] text-ink-3">En attente de la réponse…</p> : null}
         {job.error && <p className="mt-2 text-[12.5px] text-danger">{job.error}</p>}
       </div>
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isOwnFile } from "./markdown";
+import { isOwnFile, codeLabel } from "./markdown";
 
 describe("Markdown : médias d'une réponse d'IA", () => {
   const origin = "https://cairn.exemple.ch";
@@ -29,5 +29,14 @@ describe("Markdown : médias d'une réponse d'IA", () => {
     expect(isOwnFile("/api/notes?q=secret", origin)).toBe(false);
     expect(isOwnFile("/api/files/../notes", origin)).toBe(false);
     expect(isOwnFile("/logout", origin)).toBe(false);
+  });
+});
+
+describe("codeLabel", () => {
+  it("names shell code Terminal and keeps other languages", () => {
+    expect(codeLabel("language-bash")).toBe("Terminal");
+    expect(codeLabel("language-sh")).toBe("Terminal");
+    expect(codeLabel("language-python")).toBe("python");
+    expect(codeLabel("")).toBe("Code");
   });
 });

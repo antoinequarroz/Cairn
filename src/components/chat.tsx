@@ -13,6 +13,7 @@ import type { ChatMessage, Conversation, Note } from "@/lib/types";
 import { api, ApiError, cn } from "@/lib/utils";
 import { FolderSelect } from "./folder-select";
 import { Button, inputClass } from "./ui";
+import { Prose } from "./prose";
 
 /** How often a discussion whose answer is being written elsewhere (another tab, a closed one) is read again. */
 const POLL_MS = 1_500;
@@ -362,7 +363,7 @@ function AssistantMessage({ message, onSave }: { message: ChatMessage; onSave: (
   const streaming = message.state === "streaming";
   return (
     <div className="group flex flex-col gap-1.5">
-      {html ? <article className="prose-cairn" dangerouslySetInnerHTML={{ __html: html }} /> : streaming && <p className="animate-pulse text-[13.5px] text-ink-3">L&apos;IA réfléchit…</p>}
+      {html ? <Prose html={html} /> : streaming && <p className="animate-pulse text-[13.5px] text-ink-3">L&apos;IA réfléchit…</p>}
       {message.state === "error" && <p className="rounded-lg border border-danger/30 bg-danger/5 px-3 py-2 text-[13px] text-danger">{message.error ?? "La réponse a échoué"}</p>}
       {message.state === "stopped" && <p className="text-[12px] text-ink-3">Réponse arrêtée</p>}
       {!streaming && message.content && (

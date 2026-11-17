@@ -92,3 +92,12 @@ export function markdownForFile(name: string, mime: string, url: string) {
   const label = name.replace(/[\[\]]/g, "");
   return /^(image|video|audio)\//.test(mime) ? `![${label}](${url})` : `[${label}](${url})`;
 }
+
+const TERMINAL = /^(bash|sh|shell|zsh|console|terminal)$/i;
+
+/** The name shown on a code block: "Terminal" for shell code, else the language Markdown gave it. */
+export function codeLabel(className: string) {
+  const lang = className.match(/language-([\w+#-]+)/)?.[1] ?? "";
+  if (!lang) return "Code";
+  return TERMINAL.test(lang) ? "Terminal" : lang;
+}

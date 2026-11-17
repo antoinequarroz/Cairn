@@ -17,6 +17,7 @@ import { Button } from "./ui";
 import { FolderSelect } from "./folder-select";
 import { FormatToolbar, SlashMenu, useFormatting } from "./format-toolbar";
 import { UnlockForm } from "./unlock-form";
+import { Prose } from "./prose";
 
 type Mode = "write" | "split" | "preview";
 type SaveState = "saved" | "dirty" | "saving" | "error";
@@ -315,7 +316,7 @@ export function Editor({ id }: { id: string }) {
             )}
             {mode !== "write" && (
               <div className="scroll-thin min-h-0 overflow-y-auto px-7 py-3 max-md:px-4">
-                {html ? <article className="prose-cairn" dangerouslySetInnerHTML={{ __html: html }} /> : <p className="text-[13.5px] text-ink-3">L&apos;aperçu apparaît ici.</p>}
+                {html ? <Prose html={html} /> : <p className="text-[13.5px] text-ink-3">L&apos;aperçu apparaît ici.</p>}
               </div>
             )}
             {mode !== "preview" && <SlashMenu fmt={fmt} />}
