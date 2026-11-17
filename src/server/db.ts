@@ -185,6 +185,9 @@ export function getFile(id: string): FileInfo | null {
   return r ? { id: r.id, name: r.name, mime: r.mime, size: r.size, createdAt: r.created_at } : null;
 }
 
+/** Forgets a file. The caller removes it from FILES_DIR. */
+export const deleteFile = (id: string) => db().prepare("delete from files where id = ?").run(id).changes > 0;
+
 export function startUpload(f: { name: string; mime: string; size: number }) {
   const id = newId();
   db().prepare("insert into uploads (id, name, mime, size, created_at) values (?, ?, ?, ?, ?)").run(id, f.name, f.mime, f.size, now());

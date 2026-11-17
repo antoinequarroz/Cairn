@@ -25,7 +25,8 @@ Un seul endroit, chez moi, pour ce que j'écris et ce que je dois garder secret.
 - [x] Barre de mise en forme, raccourcis clavier et menu `/` pour écrire sans connaître le Markdown
 - [ ] Éditeur plus riche : cases à cocher cliquables, coloration du code
 - [ ] Historique des versions d'une note
-- [ ] Export et import (dossier de fichiers `.md`)
+- [x] Import (export Notion, dossier de fichiers `.md`)
+- [ ] Export (dossier de fichiers `.md`)
 - [ ] Hors ligne : lire et écrire sans réseau, synchroniser ensuite
 
 ## Étape 3 : l'IA
