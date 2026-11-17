@@ -3,6 +3,7 @@ import Database from "better-sqlite3";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { purgeSearchIndex, setupSearchIndex } from "./search-index";
 import type { ChatMessage, Conversation, ConversationSummary, FileInfo, Folder, Note, NoteSummary, VaultItemRow, VaultMeta } from "@/lib/types";
 
 export const DATA_DIR = path.resolve(process.env.DATA_DIR ?? "./data");
@@ -15,6 +16,9 @@ export function db() {
   fs.mkdirSync(FILES_DIR, { recursive: true });
   const conn = new Database(path.join(DATA_DIR, "cairn.db"));
   conn.pragma("journal_mode = WAL");
+  // Deleted content is overwritten in the file, not just marked free: a note locked with the
+  // padlock must not leave its clear text behind (in the notes table or in the search index).
+  conn.pragma("secure_delete = on");
   conn.exec(`
     create table if not exists notes (
       id text primary key,
@@ -103,6 +107,7 @@ export function db() {
   if (!conversationColumns.some((c) => c.name === "prompt_nonce")) conn.exec("alter table conversations add column prompt_nonce text not null default ''");
   // An answer still marked as streaming when the server starts was cut by a restart: nothing writes it anymore.
   conn.prepare("update messages set state = 'stopped' where state = 'streaming'").run();
+  setupSearchIndex(conn);
   globalForDb.__cairnDb = conn;
   return conn;
 }
@@ -140,6 +145,7 @@ export function updateNote(id: string, patch: { title?: string; content?: string
   db()
     .prepare("update notes set title = ?, content = ?, encrypted = ?, folder_id = ?, updated_at = ? where id = ?")
     .run(patch.title ?? cur.title, patch.content ?? cur.content, (patch.encrypted ?? cur.encrypted) ? 1 : 0, patch.folderId === undefined ? cur.folderId : patch.folderId, touched ? now() : cur.updatedAt, id);
+  if (patch.encrypted && !cur.encrypted) purgeSearchIndex(db());
   return getNote(id);
 }
 

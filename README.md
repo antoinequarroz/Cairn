@@ -10,7 +10,8 @@ En ligne sur **https://cairn.antoinequarroz.ch** (voir [docs/DEPLOIEMENT.md](doc
 
 ## Ce qui marche aujourd'hui
 
-- **Notes en Markdown** : écriture, aperçu ou les deux côte à côte, enregistrement automatique, recherche ⌘K.
+- **Notes en Markdown** : écriture, aperçu ou les deux côte à côte, enregistrement automatique.
+- **Recherche dans tout le texte** (⌘K) : notes et discussions avec l'IA, sans souci des accents, mots trouvés surlignés, limitée à un dossier si besoin. Une note chiffrée n'est cherchée que par son titre.
 - **Mise en forme sans connaître le Markdown** : barre d'outils (titres, gras, listes, tâches, tableaux, images…), raccourcis clavier et aide intégrée. Le menu `/` ajoute des encadrés, des blocs repliables, des commandes terminal, des liens vers d'autres notes, la date du jour et les actions de l'IA.
 - **Images, vidéos, sons, fichiers** : glisse-les ou colle-les dans une note. Les vidéos se lisent dans la page.
 - **Coffre** : identifiants, clés SSH et accès VPS, notes secrètes, générateur de mots de passe. Chiffré sur l'appareil, le serveur ne voit jamais le contenu.
@@ -72,6 +73,7 @@ Le **mot de passe maître du coffre** n'est pas une variable : il se choisit dan
 | POST | `/api/files` | Commencer l'envoi d'un fichier (`name`, `mime`, `size`) |
 | PUT | `/api/uploads/:id?offset=N` | Envoyer un morceau du fichier (8 Mo au plus) |
 | GET | `/api/files/:id` | Télécharger un fichier |
+| GET | `/api/search?q=…&folder=…` | Chercher dans les notes et les discussions (meilleurs résultats d'abord, `folder` facultatif) |
 | GET, POST | `/api/folders` | Lister les dossiers, en créer un (`name`, `parentId`, `instructions`) |
 | PATCH, DELETE | `/api/folders/:id` | Renommer, déplacer, changer les consignes ; supprimer (le contenu remonte d'un niveau) |
 | GET, POST | `/api/conversations` | Lister les discussions, en créer une (`folderId`, `title`, `contextNoteIds`) |

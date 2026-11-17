@@ -198,3 +198,13 @@ export function flattenFolders(folders: Folder[]): { folder: Folder; depth: numb
   visit(null, 0);
   return out;
 }
+
+/** The ids of a folder and of everything below it. */
+export function folderScope(folders: Folder[], id: string): Set<string> {
+  const scope = new Set([id]);
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const f of folders) if (f.parentId && scope.has(f.parentId) && !scope.has(f.id)) grew = !!scope.add(f.id);
+  }
+  return scope;
+}
