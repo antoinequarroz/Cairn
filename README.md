@@ -17,7 +17,7 @@ En ligne sur **https://cairn.antoinequarroz.ch** (voir [docs/DEPLOIEMENT.md](doc
 - **Accès protégé** par mot de passe, modifiable dans Réglages.
 - **Installable** comme une app sur Mac (Safari, « Ajouter au Dock ») et sur iPhone (« Sur l'écran d'accueil »).
 - **API** pour Hermes et Claude Code, qui peuvent lire et écrire des notes.
-- **Demander à l'IA** dans l'éditeur : résumer, améliorer, corriger, continuer, traduire, ou une consigne libre, sur la sélection ou sur toute la note. La réponse s'affiche à part, tu choisis ensuite de l'insérer ou non. Branché depuis **Réglages > IA** sur ton abonnement Claude (via Claude Code) ou ChatGPT (via Codex), une clé d'API Anthropic ou OpenAI, ou Hermes ([docs/IA.md](docs/IA.md)). Jamais sur une note chiffrée.
+- **Demander à l'IA** dans l'éditeur : résumer, améliorer, corriger, continuer, traduire, ou une consigne libre, sur la sélection ou sur toute la note. La réponse s'affiche à part, tu choisis ensuite de l'insérer ou non. Branché sur Hermes, l'API d'Anthropic ou celle d'OpenAI ([docs/IA.md](docs/IA.md)). Jamais sur une note chiffrée.
 
 La suite (dossiers, questions sur toutes les notes, apps Mac et iOS natives) est dans [docs/ROADMAP.md](docs/ROADMAP.md).
 
@@ -50,9 +50,7 @@ Copier `.env.example` en `.env.local` (en local) ou `.env` (sur le VPS) :
 | `HERMES_URL`, `HERMES_API_KEY`, `HERMES_MODEL` | Bouton « IA » avec Hermes, ton agent sur le VPS (modèle `hermes-agent` par défaut). |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | Bouton « IA » avec l'API d'Anthropic (`claude-opus-5-5` par défaut). |
 | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL` | Bouton « IA » avec l'API d'OpenAI ou un serveur compatible (`gpt-5.1` par défaut). |
-| `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CODE_MODEL` | Bouton « IA » sur l'abonnement Claude (jeton de `claude setup-token`, `sonnet` par défaut). |
-| `CODEX_AUTH_JSON`, `CODEX_MODEL` | Bouton « IA » sur l'abonnement ChatGPT (contenu de `~/.codex/auth.json`). |
-| `AI_PROVIDER` | Impose `hermes`, `anthropic`, `openai`, `claude-code` ou `codex`. Sans lui : le premier configuré, dans cet ordre. |
+| `AI_PROVIDER` | Impose `hermes`, `anthropic` ou `openai`. Sans lui : le premier configuré, dans cet ordre. |
 
 Un seul fournisseur d'IA suffit, et aucun n'est obligatoire. Tout cela se règle aussi dans l'app, **Réglages > IA**, qui passe avant le `.env`. Le détail est dans [docs/IA.md](docs/IA.md).
 
@@ -86,7 +84,7 @@ Les notes chiffrées de bout en bout sont renvoyées chiffrées : un script ne p
 - [Architecture](docs/ARCHITECTURE.md) : comment c'est construit, et pourquoi
 - [Sécurité](docs/SECURITE.md) : ce qui est chiffré, contre quoi, et les limites
 - [Déploiement](docs/DEPLOIEMENT.md) : mise en ligne sur le VPS, sauvegardes
-- [IA](docs/IA.md) : brancher un abonnement Claude ou ChatGPT, une clé d'API ou Hermes, et ce qui leur est envoyé
+- [IA](docs/IA.md) : brancher Hermes, Anthropic ou OpenAI, et ce qui leur est envoyé
 - [Roadmap](docs/ROADMAP.md) : les prochaines étapes
 
 ## Stack

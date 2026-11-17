@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anthropicDelta, appendInline, buildPrompt, claudeCodeDelta, codexDelta, createLineParser, createSseParser, fitTo, insertBelow, locate, MAX_AI_INSTRUCTION, MAX_AI_TEXT, openAiDelta, parseAiInput, pickProvider, redactSecrets, badProviderUrl, replaceRange, type Delta } from "./ai";
+import { anthropicDelta, appendInline, buildPrompt, createSseParser, fitTo, insertBelow, locate, MAX_AI_INSTRUCTION, MAX_AI_TEXT, openAiDelta, parseAiInput, pickProvider, redactSecrets, badProviderUrl, replaceRange, type Delta } from "./ai";
 
 /** Feeds raw SSE text cut into the given pieces and collects what comes out. */
 function run(pieces: string[], delta: (data: string) => Delta) {
@@ -273,58 +273,3 @@ describe("demande à l'IA : appliquer la réponse", () => {
   });
 });
 
-describe("fournisseurs par abonnement", () => {
-  it("passent après les API en automatique, et se forcent comme les autres", () => {
-    expect(pickProvider({ CLAUDE_CODE_OAUTH_TOKEN: "t", OPENAI_API_KEY: "o" }).provider).toBe("openai");
-    expect(pickProvider({ CLAUDE_CODE_OAUTH_TOKEN: "t", CODEX_AUTH_JSON: "{}" })).toMatchObject({ provider: "claude-code", ready: true, model: "sonnet", label: "Claude, abonnement (sonnet)" });
-    expect(pickProvider({ CODEX_AUTH_JSON: "{}" })).toMatchObject({ provider: "codex", ready: true, model: "", label: "Codex" });
-    expect(pickProvider({ OPENAI_API_KEY: "o", AI_PROVIDER: "codex" })).toMatchObject({ provider: "codex", ready: false });
-    expect(pickProvider({ OPENAI_API_KEY: "o", AI_PROVIDER: "auto" }).provider).toBe("openai");
-    expect(pickProvider({ CLAUDE_CODE_OAUTH_TOKEN: "t", CLAUDE_CODE_MODEL: "opus" }).label).toBe("Claude, abonnement (opus)");
-    expect(pickProvider({ CODEX_AUTH_JSON: "{}", CODEX_MODEL: "gpt-5.1-codex" }).label).toBe("Codex (gpt-5.1-codex)");
-  });
-});
-
-describe("sortie des outils en ligne de commande", () => {
-  const lines = (pieces: string[], delta: (line: string) => Delta) => {
-    const out: Delta[] = [];
-    const parser = createLineParser((l) => out.push(delta(l)));
-    for (const p of pieces) parser.feed(p);
-    parser.end();
-    return { text: out.map((d) => d.text ?? "").join(""), done: out.some((d) => d.done), errors: out.flatMap((d) => (d.error ? [d.error] : [])) };
-  };
-  const ev = (event: unknown) => JSON.stringify({ type: "stream_event", event });
-
-  it("Claude Code : le texte des messages partiels, la fin sur « result »", () => {
-    const out = [
-      JSON.stringify({ type: "system", subtype: "init" }),
-      ev({ type: "message_start" }),
-      ev({ type: "content_block_delta", delta: { type: "text_delta", text: "Bon" } }),
-      ev({ type: "content_block_delta", delta: { type: "text_delta", text: "jour" } }),
-      ev({ type: "message_stop" }),
-      JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "Bonjour" }] } }),
-      JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "Bonjour" }),
-    ].join("\n");
-    for (const [a, b] of cuts(out).filter((_, i) => i % 7 === 0)) expect(lines([a, b], claudeCodeDelta)).toEqual({ text: "Bonjour", done: true, errors: [] });
-    // message_stop alone does not end the answer
-    expect(lines([ev({ type: "message_stop" })], claudeCodeDelta).done).toBe(false);
-  });
-
-  it("Claude Code : l'erreur du résultat", () => {
-    expect(lines([JSON.stringify({ type: "result", subtype: "error_during_execution", is_error: true, errors: ["Invalid token"] })], claudeCodeDelta).errors).toEqual(["Invalid token"]);
-    expect(lines([JSON.stringify({ type: "result", subtype: "success", is_error: true, result: "Credit balance is too low" })], claudeCodeDelta).errors).toEqual(["Credit balance is too low"]);
-  });
-
-  it("Codex : les messages de l'agent, et seul turn.failed est une erreur", () => {
-    const out = [
-      { type: "thread.started", thread_id: "x" },
-      { type: "turn.started" },
-      { type: "error", message: "Reconnecting... 2/5" },
-      { type: "item.completed", item: { type: "reasoning", text: "je réfléchis" } },
-      { type: "item.completed", item: { type: "agent_message", text: "Bonjour" } },
-      { type: "turn.completed", usage: {} },
-    ].map((o) => JSON.stringify(o));
-    expect(lines([out.join("\n")], codexDelta)).toEqual({ text: "Bonjour", done: true, errors: [] });
-    expect(lines([JSON.stringify({ type: "turn.failed", error: { message: "usage limit reached" } })], codexDelta).errors).toEqual(["usage limit reached"]);
-  });
-});

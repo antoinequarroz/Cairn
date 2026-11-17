@@ -83,29 +83,22 @@ export function buildPrompt(input: AiInput, nonce = newNonce()): { system: strin
 
 // --- Providers ---------------------------------------------------------------------------------
 
-/**
- * Who can answer. The order is the one tried in automatic mode. "claude-code" and "codex" run the
- * official command line tools on the server, on a Claude or ChatGPT subscription; the others are
- * HTTP APIs.
- */
-export const PROVIDERS = ["hermes", "anthropic", "openai", "claude-code", "codex"] as const;
+/** Who can answer. The order is the one tried in automatic mode. */
+export const PROVIDERS = ["hermes", "anthropic", "openai"] as const;
 export type ProviderId = (typeof PROVIDERS)[number];
 
 export const isProvider = (v: unknown): v is ProviderId => typeof v === "string" && (PROVIDERS as readonly string[]).includes(v);
 
-/** The prefix of each provider's settings, as environment variables: ANTHROPIC_API_KEY, CLAUDE_CODE_MODEL… */
-export const ENV_PREFIX: Record<ProviderId, string> = { hermes: "HERMES", anthropic: "ANTHROPIC", openai: "OPENAI", "claude-code": "CLAUDE_CODE", codex: "CODEX" };
+/** The prefix of each provider's settings, as environment variables: ANTHROPIC_API_KEY, OPENAI_MODEL… */
+export const ENV_PREFIX: Record<ProviderId, string> = { hermes: "HERMES", anthropic: "ANTHROPIC", openai: "OPENAI" };
 
-/** An empty default means: let the tool use its own. */
-export const DEFAULT_MODELS: Record<ProviderId, string> = { hermes: "hermes-agent", anthropic: "claude-opus-5-5", openai: "gpt-5.1", "claude-code": "sonnet", codex: "" };
+export const DEFAULT_MODELS: Record<ProviderId, string> = { hermes: "hermes-agent", anthropic: "claude-opus-5-5", openai: "gpt-5.1" };
 
 /** Shown in the settings and under the AI menu. */
 export const PROVIDER_NAMES: Record<ProviderId, string> = {
   hermes: "Hermes",
   anthropic: "Claude (clé d'API)",
   openai: "OpenAI (clé d'API)",
-  "claude-code": "Claude (abonnement)",
-  codex: "Codex (abonnement ChatGPT)",
 };
 
 type Env = Record<string, string | undefined>;
@@ -116,8 +109,6 @@ const configured: Record<ProviderId, (env: Env) => boolean> = {
   hermes: (env) => set(env.HERMES_URL) && set(env.HERMES_API_KEY),
   anthropic: (env) => set(env.ANTHROPIC_API_KEY),
   openai: (env) => set(env.OPENAI_API_KEY),
-  "claude-code": (env) => set(env.CLAUDE_CODE_OAUTH_TOKEN),
-  codex: (env) => set(env.CODEX_AUTH_JSON),
 };
 
 export const providerConfigured = (provider: ProviderId, env: Env) => configured[provider](env);
@@ -132,10 +123,6 @@ export function providerLabel(provider: ProviderId, model: string) {
       return `Claude (${model})`;
     case "openai":
       return `OpenAI (${model})`;
-    case "claude-code":
-      return `Claude, abonnement (${model})`;
-    case "codex":
-      return model ? `Codex (${model})` : "Codex";
   }
 }
 
@@ -190,26 +177,6 @@ export function createSseParser(onData: (data: string) => void) {
   };
 }
 
-/** Incremental parser for one JSON object per line (JSONL), as the command line tools print. */
-export function createLineParser(onLine: (line: string) => void) {
-  let tail = "";
-  const line = (l: string) => {
-    const t = l.trim();
-    if (t) onLine(t);
-  };
-  return {
-    feed(chunk: string) {
-      const lines = (tail + chunk).split("\n");
-      tail = lines.pop() ?? "";
-      for (const l of lines) line(l);
-    },
-    end() {
-      line(tail);
-      tail = "";
-    },
-  };
-}
-
 /**
  * What one event brings. `done` is the provider's end marker. `stopped` says the model has finished
  * its answer although more events may follow (usage, then the marker): enough to tell a complete
@@ -260,47 +227,6 @@ export function anthropicDelta(data: string): Delta {
     case "message_stop":
       return { done: true };
     case "error":
-      return { error: errorText(j.error) };
-    default:
-      return {};
-  }
-}
-
-/**
- * One line of `claude -p --output-format stream-json --include-partial-messages`. The partial
- * messages carry the raw Anthropic events; the final "result" line says whether it all went well.
- */
-export function claudeCodeDelta(line: string): Delta {
-  const j = parse(line);
-  if (!j) return {};
-  if (j.type === "stream_event") {
-    const d = anthropicDelta(JSON.stringify(j.event ?? null));
-    // The answer is only complete with the "result" line: a message may end and the tool carry on.
-    return d.done ? {} : d;
-  }
-  if (j.type === "result") {
-    if (!j.is_error) return { done: true };
-    const errors = Array.isArray(j.errors) ? j.errors.filter((e): e is string => typeof e === "string") : [];
-    const reason = errors[0] ?? (typeof j.result === "string" && j.result ? j.result : String(j.subtype ?? "erreur inconnue"));
-    return { error: reason };
-  }
-  return {};
-}
-
-/**
- * One line of `codex exec --json`. Codex sends its answer as whole messages, not word by word.
- * Its "error" lines are retries it reports along the way, not failures: only "turn.failed" is one.
- */
-export function codexDelta(line: string): Delta {
-  const j = parse(line);
-  if (!j) return {};
-  const item = j.item as { type?: unknown; text?: unknown } | undefined;
-  switch (j.type) {
-    case "item.completed":
-      return item?.type === "agent_message" && typeof item.text === "string" && item.text ? { text: item.text } : {};
-    case "turn.completed":
-      return { done: true };
-    case "turn.failed":
       return { error: errorText(j.error) };
     default:
       return {};

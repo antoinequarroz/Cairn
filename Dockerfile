@@ -22,12 +22,6 @@ FROM node:22-bookworm-slim AS run
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0 DATA_DIR=/data
 RUN groupadd -g 1001 app && useradd -u 1001 -g app -m app && mkdir -p /data && chown app:app /data
-# Claude Code and Codex, for the AI button on a Claude or ChatGPT subscription (Réglages > IA, docs/IA.md).
-# Their logins live in /data/ai, never in the image. AI_TOOLS= (empty) leaves them out.
-ARG AI_TOOLS=true
-ARG CLAUDE_CODE_VERSION=latest
-ARG CODEX_VERSION=latest
-RUN [ -z "$AI_TOOLS" ] || (npm install -g "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSION" "@openai/codex@$CODEX_VERSION" && npm cache clean --force)
 COPY --from=build --chown=app:app /app/.next/standalone ./
 COPY --from=build --chown=app:app /app/.next/static ./.next/static
 COPY --from=build --chown=app:app /app/public ./public

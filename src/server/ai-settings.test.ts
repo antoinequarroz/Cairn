@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,18 +10,17 @@ vi.hoisted(async () => {
   process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "cairn-settings-"));
 });
 
-import { aiEnv, aiSecrets, aiSettingsView, saveCodexAuth, updateAiSettings } from "./ai-settings";
+import { aiEnv, aiSecrets, aiSettingsView, updateAiSettings } from "./ai-settings";
 import { db } from "./db";
-import { AiError, streamAnswer } from "./ai";
+import { streamAnswer } from "./ai";
 import { open, seal } from "./secret-box";
 
 const DIR = process.env.DATA_DIR!;
 const rawSettings = () => (db().prepare("select value from settings where key = 'ai'").get() as { value: string } | undefined)?.value ?? "";
-const CODEX_AUTH = JSON.stringify({ tokens: { access_token: "acces-codex-secret", refresh_token: "r1" } });
 
 beforeEach(() => {
   db().prepare("delete from settings").run();
-  for (const name of ["AI_PROVIDER", "HERMES_URL", "HERMES_API_KEY", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL", "OPENAI_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "CODEX_AUTH_JSON", "CAIRN_SECRET"]) vi.stubEnv(name, "");
+  for (const name of ["AI_PROVIDER", "HERMES_URL", "HERMES_API_KEY", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL", "OPENAI_API_KEY", "CAIRN_SECRET"]) vi.stubEnv(name, "");
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -91,8 +89,7 @@ describe("réglages de l'IA", () => {
 
   it("refuse ce qui ne peut pas marcher", () => {
     expect(updateAiSettings({ provider: "gemini" as never })).toBe("Fournisseur inconnu");
-    expect(updateAiSettings({ providers: { "claude-code": { secret: "sk-ant-api03-abc" } } })).toMatch(/clé d'API/);
-    expect(updateAiSettings({ providers: { codex: { secret: "pas du json" } } })).toMatch(/auth.json/);
+    expect(updateAiSettings({ providers: { "claude-code": { secret: "sk-ant-oat01-abc" } } } as never)).toBe("Fournisseur inconnu");
     expect(updateAiSettings({ providers: { openai: { url: "http://moi:mdp@exemple.ch/v1" } } })).toMatch(/sans identifiants/);
     expect(updateAiSettings({ providers: { anthropic: { url: "https://x" } } })).toMatch(/pas d'adresse/);
     expect(updateAiSettings({ providers: { anthropic: { model: "deux mots" } } })).toBe("Nom de modèle invalide");
@@ -105,89 +102,12 @@ describe("réglages de l'IA", () => {
     vi.stubEnv("CAIRN_SECRET", "autre-secret");
     expect(aiSettingsView().providers.find((p) => p.id === "openai")).toMatchObject({ unreadable: true, configured: false, secretSource: null });
   });
-
-  it("met à jour la connexion Codex renouvelée", () => {
-    updateAiSettings({ providers: { codex: { secret: CODEX_AUTH } } });
-    saveCodexAuth('{"tokens":{"access_token":"nouveau"}}');
-    expect(aiEnv().CODEX_AUTH_JSON).toBe('{"tokens":{"access_token":"nouveau"}}');
-  });
 });
 
-// --- The subscription providers, with fake command line tools ------------------------------------
-
-const BIN = fs.mkdtempSync(path.join(os.tmpdir(), "cairn-bin-"));
-const tool = (name: string, script: string) => fs.writeFileSync(path.join(BIN, name), `#!/bin/sh\n${script}\n`, { mode: 0o755 });
-
-async function drain(stream: ReadableStream<Uint8Array>) {
-  const reader = stream.getReader();
-  let out = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) return out;
-    out += new TextDecoder().decode(value);
-  }
-}
-
-const INPUT = { action: "summarize", text: "Une note sur Cairn.", title: "Test" } as const;
-
-describe("abonnements : Claude Code et Codex", () => {
-  beforeEach(() => vi.stubEnv("PATH", `${BIN}:${process.env.PATH}`));
-
-  it("Claude Code reçoit la note sur son entrée, sans outils, avec le jeton et rien d'autre", async () => {
-    tool(
-      "claude",
-      `input=$(cat)
-printf '%s\\n' "$@" > "${BIN}/claude.args"
-env > "${BIN}/claude.env"
-echo '{"type":"system","subtype":"init"}'
-printf '%s\\n' '{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Résumé "}}}'
-printf '%s\\n' '{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"court"}}}'
-printf '%s\\n' '{"type":"result","subtype":"success","is_error":false}'
-case "$input" in *"Une note sur Cairn."*) ;; *) exit 3 ;; esac`,
-    );
-    vi.stubEnv("APP_PASSWORD", "mot-de-passe-de-l-app");
-    updateAiSettings({ provider: "claude-code", providers: { "claude-code": { secret: "sk-ant-oat01-jeton" } } });
-    expect(await drain(await streamAnswer(INPUT))).toBe("Résumé court");
-    const args = fs.readFileSync(path.join(BIN, "claude.args"), "utf8").split("\n");
-    expect(args).toEqual(expect.arrayContaining(["-p", "stream-json", "--include-partial-messages", "--tools", "", "--model", "sonnet", "--no-session-persistence"]));
-    const env = fs.readFileSync(path.join(BIN, "claude.env"), "utf8");
-    expect(env).toContain("CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-jeton");
-    expect(env).not.toContain("mot-de-passe-de-l-app");
-  });
-
-  it("Claude Code : son erreur est rendue, sans le jeton", async () => {
-    tool("claude", `cat > /dev/null; printf '%s\\n' '{"type":"result","subtype":"error_during_execution","is_error":true,"errors":["Token sk-ant-oat01-jeton expired"]}'; exit 1`);
-    updateAiSettings({ provider: "claude-code", providers: { "claude-code": { secret: "sk-ant-oat01-jeton" } } });
-    const error = await streamAnswer(INPUT).catch((e: Error) => e);
-    expect(error).toBeInstanceOf(AiError);
-    expect((error as Error).message).toBe("Claude, abonnement (sonnet) : Token … expired");
-  });
-
-  it("Codex : la réponse, la connexion renouvelée gardée, et auth.json effacé après", async () => {
-    tool(
-      "codex",
-      `cat > /dev/null
-grep -q acces-codex-secret "$CODEX_HOME/auth.json" || exit 4
-printf '%s\\n' '{"tokens":{"access_token":"renouvele","refresh_token":"r2"}}' > "$CODEX_HOME/auth.json"
-printf '%s\\n' '{"type":"turn.started"}' '{"type":"error","message":"Reconnecting... 1/5"}' '{"type":"item.completed","item":{"type":"agent_message","text":"Résumé Codex"}}' '{"type":"turn.completed"}'`,
-    );
-    updateAiSettings({ provider: "codex", providers: { codex: { secret: CODEX_AUTH } } });
-    expect(await drain(await streamAnswer(INPUT))).toBe("Résumé Codex");
-    await vi.waitFor(() => expect(fs.existsSync(path.join(DIR, "ai", "codex", "auth.json"))).toBe(false));
-    expect(aiEnv().CODEX_AUTH_JSON).toContain("renouvele");
-  });
-
-  it("dit clairement quand l'outil n'est pas installé", async () => {
-    vi.stubEnv("PATH", "/nonexistent");
-    updateAiSettings({ provider: "codex", providers: { codex: { secret: CODEX_AUTH } } });
-    const error = await streamAnswer(INPUT).catch((e: Error) => e);
-    expect((error as Error).message).toBe("Codex (codex) n'est pas installé sur le serveur. Voir docs/IA.md.");
-    expect(fs.existsSync(path.join(DIR, "ai", "codex", "auth.json"))).toBe(false);
-  });
-
-  it("un fournisseur choisi pour un test, même s'il n'est pas celui utilisé", async () => {
+describe("fournisseur choisi pour un test", () => {
+  it("dit qu'il n'est pas configuré, même si un autre l'est", async () => {
     updateAiSettings({ provider: "anthropic", providers: { anthropic: { secret: "sk-ant-api03-xxxxxxxx" } } });
-    const error = await streamAnswer(INPUT, undefined, { provider: "codex" }).catch((e: Error) => e);
-    expect((error as Error).message).toBe("Codex n'est pas configuré");
+    const error = await streamAnswer({ action: "summarize", text: "x" }, undefined, { provider: "openai" }).catch((e: Error) => e);
+    expect((error as Error).message).toBe("OpenAI (gpt-5.1) n'est pas configuré");
   });
 });

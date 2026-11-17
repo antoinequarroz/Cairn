@@ -30,7 +30,7 @@ Une seule app, une seule base, un seul conteneur. C'est volontairement la même 
 | Chiffrement | Web Crypto (AES-256-GCM) + Argon2id | Standard, présent dans tous les navigateurs, voir [SECURITE.md](SECURITE.md) |
 | Design | Tokens de Metricove, accent indigo | Une suite cohérente. Metricove est orange, Cairn est indigo |
 | Mise en ligne | Docker + Caddy | Comme Metricove, derrière le même Caddy |
-| IA | Appels HTTP directs, sans SDK ; Claude Code et Codex en ligne de commande pour les abonnements | Cinq fournisseurs, une seule forme (un flux de texte). Réglés dans l'app (clés chiffrées, `src/server/ai-settings.ts`) ou dans `.env` |
+| IA | Appels HTTP directs, sans SDK | Trois fournisseurs, une seule forme (un flux de texte). Rien à installer de plus |
 
 ## Les trois niveaux de protection
 
@@ -92,7 +92,7 @@ Les apps natives parleront à la même API. Le chiffrement reste le même format
 Deux voies, compatibles entre elles :
 
 - **Par l'API** : Claude Code (avec ton abonnement) ou Hermes lisent et écrivent des notes avec `API_TOKEN`. Rien à installer dans Cairn.
-- **Dans l'éditeur** : le bouton « IA » (résumer, améliorer, corriger, continuer, traduire, consigne libre). Cairn appelle Hermes sur le VPS, comme Metricove le fait pour les légendes, l'API d'Anthropic ou d'OpenAI avec une clé, ou bien Claude Code ou Codex installés dans l'image, sur ton abonnement. Tout se branche dans Réglages > IA. Le mode d'emploi est dans [IA.md](IA.md).
+- **Dans l'éditeur** : le bouton « IA » (résumer, améliorer, corriger, continuer, traduire, consigne libre). Cairn appelle Hermes sur le VPS, comme Metricove le fait pour les légendes, ou directement l'API d'Anthropic ou d'OpenAI avec une clé. Tout se règle dans Réglages > IA (clés chiffrées, `src/server/ai-settings.ts`), le `.env` restant le repli. Le mode d'emploi est dans [IA.md](IA.md).
 
 Le chemin d'une demande :
 

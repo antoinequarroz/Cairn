@@ -13,12 +13,10 @@ export type AiProviderView = {
   unreadable: boolean;
   /** As entered in the app; empty means modelFallback applies. */
   model: string;
-  /** From the .env, or the default. Empty for Codex: its own default. */
+  /** From the .env, or the default. */
   modelFallback: string;
   url?: string;
   urlFallback?: string;
-  /** For the subscription providers: is the command line tool installed on the server? */
-  cli?: boolean;
 };
 
 export type AiSettingsView = {

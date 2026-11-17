@@ -1,13 +1,8 @@
 import "server-only";
-import fs from "node:fs";
-import path from "node:path";
 import {
   anthropicDelta,
   badProviderUrl,
   buildPrompt,
-  claudeCodeDelta,
-  codexDelta,
-  createLineParser,
   createSseParser,
   describeProvider,
   openAiDelta,
@@ -19,8 +14,7 @@ import {
   type ProviderChoice,
   type ProviderId,
 } from "@/lib/ai";
-import { aiEnv, aiSecrets, saveCodexAuth } from "./ai-settings";
-import { CliMissing, runCli, type CliRun } from "./cli";
+import { aiEnv, aiSecrets } from "./ai-settings";
 
 /** An error whose message is safe and meant to be shown to the user, in French. */
 export class AiError extends Error {}
@@ -32,98 +26,18 @@ export function aiStatus(): AiStatus {
 
 // The longest silence accepted from a provider, before its first byte and between two chunks. It is
 // not a cap on the whole answer: a long translation may stream for many minutes. Hermes is an agent:
-// it may call tools without a word, so it gets longer than a plain model. Codex hands its answer over
-// in one piece at the end, so its silence lasts as long as it writes.
-const TIMEOUT_MS: Record<ProviderId, number> = { hermes: 150_000, anthropic: 120_000, openai: 120_000, "claude-code": 150_000, codex: 600_000 };
+// it may call tools without a word, so it gets longer than a plain model.
+const TIMEOUT_MS: Record<ProviderId, number> = { hermes: 150_000, anthropic: 120_000, openai: 120_000 };
 
-type Http = { kind: "http"; url: string; headers: Record<string, string>; body: unknown; delta: (data: string) => Delta };
-type Cli = { kind: "cli"; run: Omit<CliRun, "signal">; delta: (line: string) => Delta; before?: () => void; after?: () => void };
-type Upstream = Http | Cli;
-
-const DATA_DIR = () => path.resolve(process.env.DATA_DIR ?? "./data");
-
-/** A home for each tool, in the data volume: their login and caches live there, not in the image. */
-function toolDir(name: string) {
-  const dir = path.join(DATA_DIR(), "ai", name);
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  return dir;
-}
-
-/**
- * What a tool receives from the environment: only what it needs to run and reach the network.
- * Never the app's own secrets (APP_PASSWORD, API_TOKEN, the other providers' keys).
- */
-function toolEnv(extra: Record<string, string>): Record<string, string> {
-  const env: Record<string, string> = { LANG: "C.UTF-8", NO_COLOR: "1" };
-  for (const name of ["PATH", "TZ", "HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "https_proxy", "http_proxy", "no_proxy", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE"]) {
-    const v = process.env[name];
-    if (v) env[name] = v;
-  }
-  return { ...env, ...extra };
-}
-
-// Codex keeps its login in CODEX_HOME/auth.json and rewrites it when it refreshes the tokens. The file
-// only exists while Codex runs: before, it is written from the sealed copy; after, a refreshed copy is
-// sealed again and the file removed. Several runs at once share it.
-let codexRuns = 0;
-
-function codexUpstream(env: Record<string, string | undefined>, model: string, system: string, user: string): Cli {
-  const home = toolDir("codex");
-  const auth = path.join(home, "auth.json");
-  const given = env.CODEX_AUTH_JSON!.trim();
-  const args = ["exec", "--json", "--color", "never", "--skip-git-repo-check", "--ephemeral", "--ignore-user-config", "--ignore-rules", "--sandbox", "read-only", "-c", 'cli_auth_credentials_store="file"', "-C", toolDir("work")];
-  if (model) args.push("--model", model);
-  args.push("-");
-  return {
-    kind: "cli",
-    // Codex has no separate system prompt in exec mode: Cairn's instructions come first, then the task.
-    run: { command: "codex", args, stdin: `${system}\n\n---\n\n${user}`, env: toolEnv({ CODEX_HOME: home }), cwd: toolDir("work") },
-    delta: codexDelta,
-    before() {
-      if (codexRuns++ === 0 || !fs.existsSync(auth)) fs.writeFileSync(auth, given, { mode: 0o600 });
-    },
-    after() {
-      if (--codexRuns > 0) return;
-      try {
-        const now = fs.readFileSync(auth, "utf8").trim();
-        if (now && now !== given) {
-          JSON.parse(now);
-          saveCodexAuth(now);
-        }
-      } catch {}
-      fs.rmSync(auth, { force: true });
-    },
-  };
-}
+type Upstream = { url: string; headers: Record<string, string>; body: unknown; delta: (data: string) => Delta };
 
 function upstream({ provider, model }: ProviderChoice, env: Record<string, string | undefined>, system: string, user: string): Upstream {
   const chat = [
     { role: "system", content: system },
     { role: "user", content: user },
   ];
-  if (provider === "claude-code") {
-    return {
-      kind: "cli",
-      run: {
-        command: "claude",
-        // No tools, no settings, no MCP, no session kept: a plain question and its answer.
-        args: ["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--model", model, "--system-prompt", system, "--tools", "", "--setting-sources", "", "--strict-mcp-config", "--no-session-persistence", "--disable-slash-commands"],
-        stdin: user,
-        env: toolEnv({
-          HOME: toolDir("claude"),
-          CLAUDE_CODE_OAUTH_TOKEN: env.CLAUDE_CODE_OAUTH_TOKEN!.trim(),
-          DISABLE_AUTOUPDATER: "1",
-          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
-        }),
-        cwd: toolDir("work"),
-      },
-      delta: claudeCodeDelta,
-    };
-  }
-  if (provider === "codex") return codexUpstream(env, model, system, user);
   if (provider === "hermes") {
     return {
-      kind: "http",
       url: `${env.HERMES_URL!.trim().replace(/\/+$/, "")}/v1/chat/completions`,
       headers: { Authorization: `Bearer ${env.HERMES_API_KEY!.trim()}`, "X-Hermes-Session-Key": "cairn-notes" },
       body: { model, stream: true, messages: chat },
@@ -132,7 +46,6 @@ function upstream({ provider, model }: ProviderChoice, env: Record<string, strin
   }
   if (provider === "openai") {
     return {
-      kind: "http",
       url: `${(env.OPENAI_BASE_URL?.trim() || "https://api.openai.com/v1").replace(/\/+$/, "")}/chat/completions`,
       headers: { Authorization: `Bearer ${env.OPENAI_API_KEY!.trim()}` },
       body: { model, stream: true, messages: chat },
@@ -149,10 +62,8 @@ function upstream({ provider, model }: ProviderChoice, env: Record<string, strin
     headers["anthropic-beta"] = "server-side-fallback-2026-07-01";
     body.fallbacks = "default";
   }
-  return { kind: "http", url: "https://api.anthropic.com/v1/messages", headers, body, delta: anthropicDelta };
+  return { url: "https://api.anthropic.com/v1/messages", headers, body, delta: anthropicDelta };
 }
-
-const CLI_NAMES: Partial<Record<ProviderId, string>> = { "claude-code": "Claude Code (claude)", codex: "Codex (codex)" };
 
 /** Keys and URL credentials must never appear in an error message, whatever the upstream echoes back. */
 const redact = (message: string) => redactSecrets(message, aiSecrets());
@@ -174,7 +85,7 @@ export async function streamAnswer(input: AiInput, signal?: AbortSignal, options
   const { system, user } = buildPrompt(input);
   const up = upstream(choice, env, system, user);
   // fetch refuses such an address with a message that quotes it, password included: say it plainly instead.
-  if (up.kind === "http" && badProviderUrl(up.url)) throw new AiError(`L'adresse de ${choice.label} est invalide : il faut une adresse http(s) complète, sans identifiants (utilisateur:motdepasse@). Voir docs/IA.md.`);
+  if (badProviderUrl(up.url)) throw new AiError(`L'adresse de ${choice.label} est invalide : il faut une adresse http(s) complète, sans identifiants (utilisateur:motdepasse@). Voir docs/IA.md.`);
 
   // Armed only while waiting on the provider (never while the browser is slow to read), so it
   // measures the provider's silence and nothing else.
@@ -192,35 +103,22 @@ export async function streamAnswer(input: AiInput, signal?: AbortSignal, options
   const disarm = () => clearTimeout(timer);
   const abort = signal ? AbortSignal.any([signal, idle.signal]) : idle.signal;
 
-  let source: ReadableStream<Uint8Array>;
+  let res: Response;
   arm();
-  if (up.kind === "cli") {
-    up.before?.();
-    try {
-      source = await runCli({ ...up.run, signal: abort }, up.after);
-    } catch (e) {
-      disarm();
-      if (e instanceof CliMissing) throw new AiError(`${CLI_NAMES[choice.provider]} n'est pas installé sur le serveur. Voir docs/IA.md.`);
-      throw new AiError(`${choice.label} n'a pas pu démarrer (${short((e as Error)?.message ?? "erreur")})`);
-    }
-  } else {
-    let res: Response;
-    try {
-      res = await fetch(up.url, { method: "POST", headers: { "Content-Type": "application/json", Accept: "text/event-stream", ...up.headers }, body: JSON.stringify(up.body), signal: abort, cache: "no-store" });
-    } catch (e) {
-      disarm();
-      throw timedOut ? new AiError(`${choice.label} n'a pas répondu à temps`) : new AiError(`${choice.label} est injoignable (${short((e as Error)?.message ?? "erreur réseau")})`);
-    }
-    if (!res.ok || !res.body) {
-      const detail = short(await res.text().catch(() => ""));
-      disarm();
-      throw new AiError(`${choice.label} a répondu ${res.status}${detail ? ` : ${detail}` : ""}`);
-    }
-    source = res.body;
+  try {
+    res = await fetch(up.url, { method: "POST", headers: { "Content-Type": "application/json", Accept: "text/event-stream", ...up.headers }, body: JSON.stringify(up.body), signal: abort, cache: "no-store" });
+  } catch (e) {
+    disarm();
+    throw timedOut ? new AiError(`${choice.label} n'a pas répondu à temps`) : new AiError(`${choice.label} est injoignable (${short((e as Error)?.message ?? "erreur réseau")})`);
+  }
+  if (!res.ok || !res.body) {
+    const detail = short(await res.text().catch(() => ""));
+    disarm();
+    throw new AiError(`${choice.label} a répondu ${res.status}${detail ? ` : ${detail}` : ""}`);
   }
   disarm();
 
-  const reader = source.getReader();
+  const reader = res.body.getReader();
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
   let controller!: ReadableStreamDefaultController<Uint8Array>;
@@ -244,7 +142,7 @@ export async function streamAnswer(input: AiInput, signal?: AbortSignal, options
     if (d.error) fail(new AiError(`${choice.label} : ${short(d.error)}`));
     else if (d.done) finished = true;
   };
-  const parser = up.kind === "cli" ? createLineParser(onData) : createSseParser(onData);
+  const parser = createSseParser(onData);
 
   // Reads the upstream until there is text to hand over, or until it ends. One upstream chunk may
   // hold no text at all (role, thinking, keep-alive): stopping there would make the stream look stalled.
@@ -268,7 +166,6 @@ export async function streamAnswer(input: AiInput, signal?: AbortSignal, options
     } catch (e) {
       if (finished) return;
       if (timedOut) fail(new AiError(everProduced ? `${choice.label} a cessé de répondre` : `${choice.label} n'a pas répondu à temps`));
-      else if (up.kind === "cli") fail(new AiError(`${choice.label} : ${short((e as Error)?.message ?? "erreur")}`));
       else fail(new AiError(`${choice.label} a coupé la connexion (${short((e as Error)?.message ?? "erreur réseau")})`));
     }
     if (finished) reader.cancel().catch(() => {});

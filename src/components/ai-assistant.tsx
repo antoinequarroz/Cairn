@@ -371,7 +371,7 @@ export function AiButton({ ai, disabled }: { ai: Ai; disabled?: boolean }) {
             <p className="p-2.5 text-[12.5px] text-ink-3">Un instant…</p>
           ) : !status.ready ? (
             <p className="p-2.5 text-[12.5px] leading-relaxed text-ink-2">
-              Aucune IA n&apos;est encore branchée. Connecte ton abonnement Claude ou ChatGPT, ou une clé d&apos;API, dans{" "}
+              Aucune IA n&apos;est encore branchée. Ajoute une clé d&apos;API ou Hermes dans{" "}
               <Link href="/settings" className="font-medium text-accent underline-offset-2 hover:underline">
                 Réglages
               </Link>

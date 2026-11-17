@@ -8,29 +8,9 @@ import type { AiProviderView, AiSettingsUpdate, AiSettingsView } from "@/lib/ai-
 import { api, cn } from "@/lib/utils";
 import { Button, Field, inputClass } from "./ui";
 
-type Copy = { intro: React.ReactNode; secret: string; secretHint?: string; multiline?: boolean; models?: string[]; url?: string };
-
-const code = (s: string) => <code className="rounded bg-ink/5 px-1 py-px font-mono text-[11.5px]">{s}</code>;
+type Copy = { intro: React.ReactNode; secret: string; secretHint?: string; models?: string[]; url?: string };
 
 const COPY: Record<ProviderId, Copy> = {
-  "claude-code": {
-    intro: (
-      <>
-        Utilise ton abonnement Claude (Pro ou Max), à travers Claude Code installé sur le serveur. Sur ton Mac, lance {code("claude setup-token")}, connecte-toi, puis colle ici le jeton affiché ({code("sk-ant-oat…")}). Il est valable un an.
-      </>
-    ),
-    secret: "Jeton Claude Code",
-    models: ["sonnet", "opus", "haiku"],
-  },
-  codex: {
-    intro: (
-      <>
-        Utilise ton abonnement ChatGPT, à travers Codex installé sur le serveur. Sur ton Mac, lance {code("codex -c cli_auth_credentials_store=file login")}, connecte-toi, puis colle ici tout le contenu du fichier {code("~/.codex/auth.json")}. Cairn le garde chiffré et le met à jour quand Codex renouvelle la connexion.
-      </>
-    ),
-    secret: "Contenu de auth.json",
-    multiline: true,
-  },
   anthropic: {
     intro: <>Une clé d&apos;API de console.anthropic.com, facturée à l&apos;usage, à part de tout abonnement.</>,
     secret: "Clé d'API Anthropic",
@@ -48,8 +28,7 @@ const COPY: Record<ProviderId, Copy> = {
   },
 };
 
-/** Subscriptions first: that is what most people have. */
-const ORDER: ProviderId[] = ["claude-code", "codex", "anthropic", "openai", "hermes"];
+const ORDER: ProviderId[] = ["anthropic", "openai", "hermes"];
 
 export function AiSettings() {
   const [view, setView] = useState<AiSettingsView | null>(null);
@@ -86,7 +65,7 @@ export function AiSettings() {
               ? `Le bouton « IA » des notes utilise ${view.active.label}.`
               : view.active.provider
                 ? `${PROVIDER_NAMES[view.active.provider]} est choisi, mais il lui manque sa clé.`
-                : "Aucune IA n'est branchée. Connecte un abonnement ou une clé d'API ci-dessous."}{" "}
+                : "Aucune IA n'est branchée. Ajoute une clé d'API ou Hermes ci-dessous."}{" "}
           Les clés restent chiffrées sur le serveur et ne reviennent jamais dans le navigateur. Les notes avec le cadenas ne sont jamais envoyées.
         </p>
       </div>
@@ -181,11 +160,6 @@ function ProviderRow({ p, active, save }: { p: AiProviderView; active: boolean; 
       </summary>
       <form onSubmit={submit} className="flex flex-col gap-3 px-3.5 pt-1 pb-4">
         <p className="text-[12.5px] leading-relaxed text-ink-2">{copy.intro}</p>
-        {p.cli === false && (
-          <p className="rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-[12.5px] text-ink-2">
-            L&apos;outil {code(p.id === "codex" ? "codex" : "claude")} n&apos;est pas installé sur ce serveur. Reconstruis l&apos;image Docker de Cairn (elle l&apos;inclut désormais), voir docs/IA.md.
-          </p>
-        )}
         {p.unreadable && (
           <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-[12.5px] text-ink-2">
             La clé enregistrée ne peut plus être déchiffrée (CAIRN_SECRET a changé, ou data/secret.key a été perdu). Colle-la à nouveau.
@@ -200,13 +174,9 @@ function ProviderRow({ p, active, save }: { p: AiProviderView; active: boolean; 
           label={copy.secret}
           hint={p.secretSource === "app" ? `Enregistrée${p.secretHint ? ` (${p.secretHint})` : ""}. Laisse vide pour la garder.` : p.secretSource === "env" ? `Celle du .env${p.secretHint ? ` (${p.secretHint})` : ""} est utilisée. Une valeur ici la remplace.` : copy.secretHint}
         >
-          {copy.multiline ? (
-            <textarea value={secret} onChange={(e) => setSecret(e.target.value)} rows={4} placeholder={p.secretSource ? "••••••••" : '{ "tokens": { … } }'} className={cn(inputClass, "h-auto py-2 font-mono text-[12px]")} spellCheck={false} autoComplete="off" />
-          ) : (
-            <input type="password" value={secret} onChange={(e) => setSecret(e.target.value)} placeholder={p.secretSource ? "••••••••" : ""} className={inputClass} autoComplete="off" spellCheck={false} />
-          )}
+          <input type="password" value={secret} onChange={(e) => setSecret(e.target.value)} placeholder={p.secretSource ? "••••••••" : ""} className={inputClass} autoComplete="off" spellCheck={false} />
         </Field>
-        <Field label="Modèle" hint={p.modelFallback ? `Vide : ${p.modelFallback}` : "Vide : celui de Codex par défaut"}>
+        <Field label="Modèle" hint={`Vide : ${p.modelFallback}`}>
           <input value={model} onChange={(e) => setModel(e.target.value)} placeholder={p.modelFallback} list={copy.models ? `models-${p.id}` : undefined} className={inputClass} spellCheck={false} />
         </Field>
         {copy.models && (

@@ -4,8 +4,6 @@
 // Keys and tokens are sealed in the database (secret-box) and never sent back to the browser:
 // the settings page only learns whether a key is there, where it comes from, and its last characters.
 import "server-only";
-import fs from "node:fs";
-import path from "node:path";
 import { DEFAULT_MODELS, ENV_PREFIX, isProvider, pickProvider, PROVIDERS, providerConfigured, type ProviderId } from "@/lib/ai";
 import type { AiProviderView, AiSettingsUpdate, AiSettingsView } from "@/lib/ai-settings";
 import { getSetting, setSetting } from "./db";
@@ -21,8 +19,6 @@ export const SECRET_VAR: Record<ProviderId, string> = {
   hermes: "HERMES_API_KEY",
   anthropic: "ANTHROPIC_API_KEY",
   openai: "OPENAI_API_KEY",
-  "claude-code": "CLAUDE_CODE_OAUTH_TOKEN",
-  codex: "CODEX_AUTH_JSON",
 };
 export const URL_VAR: Partial<Record<ProviderId, string>> = { hermes: "HERMES_URL", openai: "OPENAI_BASE_URL" };
 
@@ -67,18 +63,7 @@ export function aiSecrets(): string[] {
   return PROVIDERS.map((p) => env[SECRET_VAR[p]]?.trim()).filter((v): v is string => !!v);
 }
 
-function onPath(command: string) {
-  return (process.env.PATH ?? "").split(path.delimiter).some((dir) => {
-    try {
-      fs.accessSync(path.join(dir, command), fs.constants.X_OK);
-      return true;
-    } catch {
-      return false;
-    }
-  });
-}
-
-const hint = (p: ProviderId, secret: string) => (p === "codex" ? null : secret.length > 12 ? `…${secret.slice(-4)}` : "…");
+const hint = (secret: string) => (secret.length > 12 ? `…${secret.slice(-4)}` : "…");
 
 export function aiSettingsView(): AiSettingsView {
   const s = stored();
@@ -93,13 +78,12 @@ export function aiSettingsView(): AiSettingsView {
       id: p,
       configured: providerConfigured(p, env),
       secretSource: fromApp ? "app" : fromEnv ? "env" : null,
-      secretHint: fromApp ? hint(p, fromApp) : fromEnv ? hint(p, fromEnv) : null,
+      secretHint: fromApp ? hint(fromApp) : fromEnv ? hint(fromEnv) : null,
       unreadable: unreadable.includes(p),
       model: conf.model ?? "",
       modelFallback: process.env[`${ENV_PREFIX[p]}_MODEL`]?.trim() || DEFAULT_MODELS[p],
       url: urlVar ? (conf.url ?? "") : undefined,
       urlFallback: urlVar ? (process.env[urlVar]?.trim() ?? "") : undefined,
-      cli: p === "claude-code" ? onPath("claude") : p === "codex" ? onPath("codex") : undefined,
     };
   });
   const active = pickProvider(env);
@@ -111,22 +95,13 @@ export function aiSettingsView(): AiSettingsView {
   };
 }
 
-const MAX_SECRET = 20_000;
+const MAX_SECRET = 2_000;
 const MAX_FIELD = 300;
 
 /** Checks a secret before it is stored. Returns the French reason it is refused, or null. */
-export function checkSecret(p: ProviderId, value: string): string | null {
+export function checkSecret(value: string): string | null {
   if (value.length > MAX_SECRET) return "Valeur trop longue";
-  if (/\s/.test(value.trim()) && p !== "codex") return "Une clé ne contient pas d'espace : vérifie le copier-coller";
-  if (p === "claude-code" && value.trim().startsWith("sk-ant-api")) return "C'est une clé d'API : elle va dans « Claude (clé d'API) ». Ici, il faut le jeton de « claude setup-token » (sk-ant-oat…).";
-  if (p === "codex") {
-    try {
-      const j = JSON.parse(value) as Record<string, unknown>;
-      if (!j || typeof j !== "object" || !(j.tokens || j.OPENAI_API_KEY)) throw new Error();
-    } catch {
-      return "Colle le contenu complet du fichier ~/.codex/auth.json (du JSON, avec « tokens »)";
-    }
-  }
+  if (/\s/.test(value.trim())) return "Une clé ne contient pas d'espace : vérifie le copier-coller";
   return null;
 }
 
@@ -163,7 +138,7 @@ export function updateAiSettings(u: AiSettingsUpdate): string | null {
       if (change.secret === null || change.secret === "") conf.secret = undefined;
       else {
         if (typeof change.secret !== "string") return "Valeur invalide";
-        const why = checkSecret(id, change.secret);
+        const why = checkSecret(change.secret);
         if (why) return why;
         conf.secret = seal(change.secret.trim());
       }
@@ -172,12 +147,4 @@ export function updateAiSettings(u: AiSettingsUpdate): string | null {
   }
   setSetting(KEY, next);
   return null;
-}
-
-/** Codex refreshes its tokens and rewrites auth.json: keep the new one, sealed. */
-export function saveCodexAuth(json: string) {
-  const s = stored();
-  const conf = s.providers?.codex;
-  if (!conf?.secret) return; // removed meanwhile, or it came from the .env: nothing to update
-  setSetting(KEY, { ...s, providers: { ...s.providers, codex: { ...conf, secret: seal(json) } } });
 }
