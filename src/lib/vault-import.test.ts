@@ -36,7 +36,7 @@ describe("1Password", () => {
                   details: {
                     loginFields: [
                       { designation: "username", value: "antoine", fieldType: "T" },
-                      { designation: "password", value: "s3cret!", fieldType: "P" },
+                      { designation: "password", value: "<factice>", fieldType: "P" },
                     ],
                     notesPlain: "Compte principal",
                     sections: [{ title: "", fields: [{ title: "one-time password", id: "TOTP_x", value: { totp: "otpauth://totp/GitHub?secret=ABC" } }] }],
@@ -67,7 +67,7 @@ describe("1Password", () => {
     expect(r.source).toBe("1password");
     expect(r.items).toHaveLength(3);
     const [gh, vps, visa] = r.items;
-    expect(gh).toMatchObject({ type: "login", name: "GitHub", url: "https://github.com", username: "antoine", password: "s3cret!" });
+    expect(gh).toMatchObject({ type: "login", name: "GitHub", url: "https://github.com", username: "antoine", password: "<factice>" });
     expect(gh.notes).toContain("Compte principal");
     expect(gh.notes).toContain("Code 2FA (TOTP) : otpauth://totp/GitHub?secret=ABC");
     expect(gh.notes).toContain("Autre adresse : https://gist.github.com");
