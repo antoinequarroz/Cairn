@@ -15,7 +15,8 @@ En ligne sur **https://cairn.antoinequarroz.ch** (voir [docs/DEPLOIEMENT.md](doc
 - **Images, vidéos, sons, fichiers** : glisse-les ou colle-les dans une note. Les vidéos se lisent dans la page.
 - **Coffre** : identifiants, clés SSH et accès VPS, notes secrètes, générateur de mots de passe. Chiffré sur l'appareil, le serveur ne voit jamais le contenu.
 - **Cadenas par note** : une note sensible peut être chiffrée de bout en bout avec la clé du coffre.
-- **Accès protégé** par mot de passe, modifiable dans Réglages.
+- **Accès protégé** par mot de passe, modifiable dans Réglages, avec **double authentification** (code d'une app comme 1Password, codes de secours) en option ([docs/SECURITE.md](docs/SECURITE.md)).
+- **Sauvegardes chiffrées** chaque nuit, copiées hors du VPS et gardées 30 jours, avec un script de restauration testé ([docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md), étape 5).
 - **Installable** comme une app sur Mac (Safari, « Ajouter au Dock ») et sur iPhone (« Sur l'écran d'accueil »).
 - **Projets et dossiers** pour ranger notes et discussions, par glisser-déposer dans la barre latérale.
 - **Discussions avec l'IA**, rangées dans les projets : consignes par projet, notes épinglées en contexte, réponses enregistrées sur le serveur même si l'onglet se ferme.

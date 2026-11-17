@@ -69,7 +69,7 @@ src/
     chat.ts           un message d'une discussion : réponse lue jusqu'au bout et
                       enregistrée au fil de l'eau, même si l'onglet se ferme
   middleware.ts       protège tout sauf la connexion
-deploy/               Docker, Caddy, sauvegarde
+deploy/               Docker, Caddy, sauvegarde chiffrée et restauration
 ```
 
 ## Base de données

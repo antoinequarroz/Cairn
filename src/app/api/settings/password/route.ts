@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { SESSION_COOKIE } from "@/server/auth";
-import { checkPassword, currentSessionToken, MAX_PASSWORD, passwordRequired, passwordSource, SESSION_MAX_AGE, setPassword } from "@/server/password";
+import { setSessionCookie } from "@/server/cookie";
 import { body, fail } from "@/server/http";
+import { checkPassword, MAX_PASSWORD, passwordRequired, passwordSource, setPassword } from "@/server/password";
+import { isLocked, LOCKED_MESSAGE, recordFailure, recordSuccess } from "@/server/throttle";
 
 export const dynamic = "force-dynamic";
 
@@ -13,12 +14,13 @@ export function GET() {
 export async function POST(req: Request) {
   const { current, next } = await body(req);
   if (typeof next !== "string" || next.length < 10 || next.length > MAX_PASSWORD) return fail("Le nouveau mot de passe doit faire au moins 10 caractères");
+  if (isLocked()) return fail(LOCKED_MESSAGE, 429);
+  // 403, not 401: a 401 sends the page back to the login.
   if (passwordRequired() && !(await checkPassword(current))) {
-    await new Promise((r) => setTimeout(r, 600));
-    return fail("Mot de passe actuel incorrect", 401);
+    await recordFailure();
+    return fail("Mot de passe actuel incorrect", 403);
   }
+  recordSuccess();
   await setPassword(next);
-  const res = NextResponse.json({ ok: true });
-  res.cookies.set(SESSION_COOKIE, (await currentSessionToken())!, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: SESSION_MAX_AGE });
-  return res;
+  return setSessionCookie(NextResponse.json({ ok: true }));
 }

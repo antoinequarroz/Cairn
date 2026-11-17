@@ -69,21 +69,72 @@ Si Caddy répond « 502 » : `host.docker.internal` ne correspond pas à `172.17
 3. Dans **Coffre**, crée le coffre avec un **mot de passe maître différent**. Note-le dans un endroit sûr : il ne peut pas être récupéré.
 4. Sur Mac : Safari, Fichier, « Ajouter au Dock ». Sur iPhone : Partager, « Sur l'écran d'accueil ».
 
-## 5. Sauvegardes
+## 5. Sauvegardes chiffrées
+
+Chaque nuit, `deploy/backup.sh` fait une copie cohérente de la base, l'archive avec les fichiers joints et les clés du serveur (`auth.json`, `two-factor.json`, `secret.key`), la **chiffre avec [age](https://age-encryption.org)**, puis l'envoie **hors du VPS** avec rclone. Les sauvegardes de plus de 30 jours sont effacées, sur le VPS comme sur la destination. Le résultat s'affiche dans **Réglages > Sécurité** (« À vérifier » si la dernière a échoué ou a plus de 36 heures).
+
+### Une seule fois : la clé de sauvegarde (sur ton Mac)
 
 ```bash
-~/cairn/deploy/backup.sh                 # écrit dans ~/cairn-backups, garde les 14 dernières
+brew install age
+age-keygen -o ~/cairn-backup-key.txt     # affiche « Public key: age1… »
 ```
 
-Chaque nuit à 3 h, avec cron (`crontab -e`) :
+- La **clé publique** (`age1…`) va sur le VPS : elle sert seulement à chiffrer.
+- La **clé privée** (`cairn-backup-key.txt`) ne va **jamais** sur le VPS. Garde-la sur ton Mac et une copie ailleurs (clé USB, 1Password, papier). **Pas seulement dans le coffre de Cairn** : il faut pouvoir restaurer Cairn quand Cairn est perdu. Sans elle, les sauvegardes sont illisibles.
+
+Ainsi, quelqu'un qui prend le VPS ou la destination ne peut lire aucune sauvegarde.
+
+### Une seule fois : la destination hors du VPS
+
+N'importe quelle destination [rclone](https://rclone.org/overview/) : une Storage Box Hetzner (SFTP), un bucket S3 ou Backblaze B2, ton Mac par SFTP…
+
+```bash
+sudo apt install age rclone
+rclone config            # crée par exemple un « remote » nommé storagebox
+rclone mkdir storagebox:cairn
+```
+
+### Réglages
+
+Dans `~/cairn/deploy/.env` :
+
+```env
+CAIRN_BACKUP_RECIPIENTS=age1…            # la clé publique (plusieurs possibles, séparées par un espace)
+CAIRN_BACKUP_REMOTE=storagebox:cairn     # vide : sauvegardes gardées sur le VPS seulement
+CAIRN_BACKUP_KEEP_DAYS=30
+```
+
+Essaie une fois à la main, puis programme-la chaque nuit à 3 h (`crontab -e`) :
+
+```bash
+~/cairn/deploy/backup.sh
+```
 
 ```cron
 0 3 * * * $HOME/cairn/deploy/backup.sh >> $HOME/cairn-backups.log 2>&1
 ```
 
-Copie ensuite ce dossier **hors du VPS** (rsync vers ton Mac, ou un stockage objet). L'archive contient la base (`backup.db`), les fichiers joints et `auth.json`. Le coffre y est chiffré, les notes normales non.
+Les anciennes sauvegardes **non chiffrées** (`~/cairn-backups/cairn-*.tar.gz`, d'avant cette version) ne sont pas effacées d'office : supprime-les quand les nouvelles marchent.
 
-Pour restaurer : arrête Cairn, décompresse l'archive dans le volume `cairn-data` en renommant `backup.db` en `cairn.db`, relance.
+### Restaurer
+
+Sur le VPS, ou sur une machine vierge après les étapes 2 (sans `docker compose up`) et 3 :
+
+```bash
+rclone copy storagebox:cairn/cairn-2026-11-17_0300.tar.gz.age .
+scp ~/cairn-backup-key.txt vps:/tmp/          # depuis le Mac, le temps de la restauration
+cd ~/cairn/deploy
+./restore.sh cairn-2026-11-17_0300.tar.gz.age -i /tmp/cairn-backup-key.txt --check   # vérifie sans rien toucher
+./restore.sh cairn-2026-11-17_0300.tar.gz.age -i /tmp/cairn-backup-key.txt           # restaure
+shred -u /tmp/cairn-backup-key.txt
+```
+
+`--check` déchiffre l'archive, vérifie l'intégrité de la base et compte les notes, éléments du coffre et fichiers. La restauration arrête Cairn, met les données actuelles de côté dans le volume (`/data/avant-restauration-<date>/`, à supprimer une fois vérifié), installe la sauvegarde et relance. On se connecte ensuite avec le mot de passe et la double authentification **d'alors**, et le coffre s'ouvre avec son mot de passe maître habituel.
+
+Testé de bout en bout le 17.11.2026 : sauvegarde d'une installation avec une note et la double authentification, restauration dans une installation neuve (autre projet Docker, volume vide), note retrouvée, connexion avec un code TOTP puis un code de secours.
+
+**Teste une restauration (`--check` suffit) une fois par trimestre.**
 
 ## 6. Mettre à jour
 

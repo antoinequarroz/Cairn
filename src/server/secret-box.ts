@@ -3,8 +3,8 @@
 //
 // The key is CAIRN_SECRET when it is set (best: it then lives outside the data volume and its backups),
 // otherwise 32 random bytes kept in DATA_DIR/secret.key, created on first use, readable by the app only.
-// The backup script leaves secret.key out: a stolen backup holds the database but not the key to these
-// secrets. The flip side: after restoring a backup on a new server, the AI keys must be entered again.
+// The nightly backup carries secret.key inside its age-encrypted archive, so a restore on a new server
+// brings the AI keys and the two-factor secret back. With CAIRN_SECRET, keep it with the .env.
 import "server-only";
 import crypto from "node:crypto";
 import fs from "node:fs";
