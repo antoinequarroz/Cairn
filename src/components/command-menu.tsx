@@ -72,6 +72,7 @@ export function CommandMenu() {
     },
     { label: "Nouveau projet", icon: <FolderPlus className="size-4" />, run: () => newFolder() },
     { label: "Importer des notes (Notion, Markdown)", icon: <Import className="size-4" />, run: () => router.push("/settings#import") },
+    { label: "Importer des mots de passe (1Password, Bitwarden, NordPass)", icon: <Import className="size-4" />, run: () => router.push("/vault#import") },
     { label: "Ouvrir le coffre", icon: <KeyRound className="size-4" />, run: () => router.push("/vault") },
     { label: "Verrouiller le coffre", icon: <Lock className="size-4" />, run: lockVault },
     { label: "Réglages", icon: <Settings className="size-4" />, run: () => router.push("/settings") },

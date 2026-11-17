@@ -47,7 +47,7 @@ Un seul endroit, chez moi, pour ce que j'écris et ce que je dois garder secret.
 - [ ] Changer le mot de passe maître
 - [ ] Codes à usage unique (TOTP)
 - [ ] Générer une paire de clés SSH dans le coffre
-- [ ] Import depuis 1Password, Bitwarden, Trousseau Apple
+- [x] Import depuis 1Password, Bitwarden, NordPass, Mots de passe d'Apple et navigateurs ; export chiffré ou en clair
 - [ ] Journal des accès et alerte de connexion
 
 ## Étape 5 : apps natives

@@ -16,6 +16,7 @@ En ligne sur **https://cairn.antoinequarroz.ch** (voir [docs/DEPLOIEMENT.md](doc
 - **Mise en forme sans connaître le Markdown** : barre d'outils (titres, gras, listes, tâches, tableaux, images…), raccourcis clavier et aide intégrée. Le menu `/` ajoute des encadrés, des blocs repliables, des commandes terminal, des liens vers d'autres notes, la date du jour et les actions de l'IA.
 - **Images, vidéos, sons, fichiers** : glisse-les ou colle-les dans une note. Les vidéos se lisent dans la page.
 - **Coffre** : identifiants, clés SSH et accès VPS, notes secrètes, générateur de mots de passe. Chiffré sur l'appareil, le serveur ne voit jamais le contenu.
+- **Import et export du coffre** (Coffre > Importer / exporter) : depuis 1Password (`.1pux` ou CSV), Bitwarden (JSON ou CSV), NordPass (CSV), l'app Mots de passe d'Apple ou un navigateur (CSV). Les fichiers sont lus et chiffrés dans le navigateur. Export chiffré (sauvegarde réimportable) ou en clair (CSV, JSON), ce dernier après confirmation du mot de passe maître.
 - **Cadenas par note** : une note sensible peut être chiffrée de bout en bout avec la clé du coffre.
 - **Accès protégé** par mot de passe, modifiable dans Réglages, avec **double authentification** (code d'une app comme 1Password, codes de secours) en option ([docs/SECURITE.md](docs/SECURITE.md)).
 - **Sauvegardes chiffrées** chaque nuit, copiées hors du VPS et gardées 30 jours, avec un script de restauration testé ([docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md), étape 5).
@@ -52,6 +53,7 @@ Copier `.env.example` en `.env.local` (en local) ou `.env` (sur le VPS) :
 | --- | --- |
 | `APP_PASSWORD` | Mot de passe de l'app. **Obligatoire en ligne.** Il se change ensuite dans **Réglages** : le nouveau est gardé (haché) dans `data/auth.json` et passe devant `APP_PASSWORD`. Mot de passe oublié : supprime ce fichier, `APP_PASSWORD` revient. |
 | `API_TOKEN` | Jeton pour Hermes et Claude Code (`Authorization: Bearer …` sur `/api`). N'ouvre jamais le coffre ni les réglages. |
+| `LAMIO_URL`, `LAMIO_SSO_SECRET` | Facultatif. Ajoute « Se connecter avec Lamio » : on entre avec son compte [Lamio](https://github.com/antoinequarroz/lamio), qui décide qui a accès (ses administrateurs, et les membres cochés dans Modules > Accès). Le secret est le même que `CAIRN_SSO_SECRET` côté Lamio, 32 caractères au moins. Le mot de passe continue de marcher. |
 | `CAIRN_SECRET` | Facultatif. Chiffre les clés d'IA saisies dans Réglages (sinon `data/secret.key`, créé tout seul). |
 | `DATA_DIR` | Dossier de la base SQLite et des fichiers joints (`./data` par défaut). |
 | `MAX_FILE_MB` | Taille maximale d'un fichier joint (500 Mo par défaut). |
@@ -77,6 +79,7 @@ Le **mot de passe maître du coffre** n'est pas une variable : il se choisit dan
 | PUT | `/api/uploads/:id?offset=N` | Envoyer un morceau du fichier (8 Mo au plus) |
 | GET | `/api/files/:id` | Télécharger un fichier |
 | POST | `/api/import` | Importer un zip envoyé avec `/api/files` (`fileId`, `folderId` facultatif) : export Notion ou dossier Markdown |
+| POST | `/api/vault/items` | Ajouter au coffre un élément chiffré (`data`) ou un lot importé (`items`, 500 au plus). Tout ce qui n'est pas chiffré est refusé |
 | GET | `/api/search?q=…&folder=…` | Chercher dans les notes et les discussions (meilleurs résultats d'abord, `folder` facultatif) |
 | GET, POST | `/api/folders` | Lister les dossiers, en créer un (`name`, `parentId`, `instructions`) |
 | PATCH, DELETE | `/api/folders/:id` | Renommer, déplacer, changer les consignes ; supprimer (le contenu remonte d'un niveau) |
