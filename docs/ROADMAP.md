@@ -20,12 +20,13 @@ Un seul endroit, chez moi, pour ce que j'écris et ce que je dois garder secret.
 
 - [x] Projets, dossiers et sous-dossiers, glisser-déposer dans la barre latérale
 - [ ] Sous-pages, favoris, corbeille
-- [ ] Recherche dans tout le texte (SQLite FTS5)
+- [x] Recherche dans tout le texte (SQLite FTS5)
 - [ ] Liens entre notes (`[[titre]]`) et rétroliens
 - [x] Barre de mise en forme, raccourcis clavier et menu `/` pour écrire sans connaître le Markdown
 - [ ] Éditeur plus riche : cases à cocher cliquables, coloration du code
 - [ ] Historique des versions d'une note
-- [ ] Export et import (dossier de fichiers `.md`)
+- [x] Import (export Notion, dossier de fichiers `.md`)
+- [ ] Export (dossier de fichiers `.md`)
 - [ ] Hors ligne : lire et écrire sans réseau, synchroniser ensuite
 
 ## Étape 3 : l'IA
@@ -35,7 +36,7 @@ Un seul endroit, chez moi, pour ce que j'écris et ce que je dois garder secret.
 - [x] Réglages > IA dans l'app : clés d'API et Hermes, choix du fournisseur et du modèle, clés chiffrées sur le serveur
 - [x] Discussions avec l'IA rangées par projet et dossier, consignes par projet, notes épinglées en contexte, réponses enregistrées côté serveur
 - [ ] Choisir le modèle par discussion
-- [ ] Rechercher dans les discussions
+- [x] Rechercher dans les discussions
 - [ ] Créer une note ou un fichier à partir d'une consigne
 - [ ] Skill Hermes et commande Claude Code pour Cairn
 - [ ] Questions sur l'ensemble des notes

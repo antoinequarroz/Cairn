@@ -65,3 +65,17 @@ export type VaultItemData = {
 export type VaultItem = VaultItemData & { id: string; updatedAt: string };
 
 export type FileInfo = { id: string; name: string; mime: string; size: number; createdAt: string };
+
+/**
+ * One hit of the full-text search. In `title` and `snippet`, the matched words sit between \u0001
+ * and \u0002 (see <Highlighted>). An encrypted note is only found by its title.
+ */
+export type SearchResult = {
+  kind: "note" | "conversation";
+  id: string;
+  title: string;
+  snippet: string;
+  encrypted: boolean;
+  folderId: string | null;
+  updatedAt: string;
+};
