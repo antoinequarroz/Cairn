@@ -43,3 +43,6 @@ next-env.d.ts
 
 # local database and uploaded media
 /data
+
+# Réglages propres au serveur (réseau du Caddy partagé)
+/deploy/docker-compose.override.yml

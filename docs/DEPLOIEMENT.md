@@ -2,12 +2,12 @@
 
 À la fin de ce guide : **https://cairn.antoinequarroz.ch**, protégé par un mot de passe.
 
-Ce guide n'a pas encore été déroulé sur le VPS : les commandes sont celles de Metricove, adaptées. Si une étape coince, c'est probablement la 3 (le lien avec le Caddy de Metricove).
+Ce guide a été déroulé sur `antoine-vps` le 17 novembre 2026. Sur ce VPS, un seul Caddy sert tous les sites (`antoinequarroz-caddy`, du projet `~/antoinequarroz-vitrine`) et joint les apps par leur nom de conteneur, sur le réseau Docker `antoinequarroz-vitrine_appnet`. Cairn s'y branche comme Alfred et Zedline.
 
 ## 0. Prérequis
 
 - Docker et le plugin compose (`docker compose version`).
-- Metricove déjà en ligne sur ce VPS : son Caddy tient les ports 80 et 443, Cairn passe par lui. Sinon, voir l'annexe.
+- Le Caddy partagé `antoinequarroz-caddy` tient les ports 80 et 443, Cairn passe par lui. Sur un serveur sans ce Caddy, voir l'annexe.
 
 ## 1. DNS
 
@@ -29,38 +29,66 @@ APP_PASSWORD=<un mot de passe long>
 API_TOKEN=<openssl rand -hex 32>
 ```
 
-Puis :
+Puis, pour que Cairn rejoigne le réseau du Caddy partagé, crée `deploy/docker-compose.override.yml` (ignoré par git, lu tout seul par `docker compose`) :
 
 ```bash
 cd deploy
 cp .env.example .env
+cat > docker-compose.override.yml <<'EOF'
+services:
+  cairn:
+    ports: !reset []        # rien de publié sur l'hôte : seul Caddy joint Cairn
+    networks:
+      default:
+      appnet:
+        aliases: [cairn]
+networks:
+  appnet:
+    external: true
+    name: antoinequarroz-vitrine_appnet
+EOF
 docker compose up -d --build
 ```
 
-Cairn écoute maintenant sur `172.17.0.1:3020` : joignable par les autres conteneurs du VPS, pas depuis Internet. Pour vérifier : `curl -I http://172.17.0.1:3020/login` doit répondre `200`.
-
-## 3. Brancher le Caddy de Metricove
-
-Dans `~/metricove/deploy/Caddyfile`, ajoute :
-
-```caddy
-cairn.antoinequarroz.ch {
-	encode zstd gzip
-	header Strict-Transport-Security "max-age=31536000"
-	reverse_proxy host.docker.internal:3020
-}
-```
-
-Puis recharge Caddy :
+Le premier build prend quelques minutes sur le VPS. Pour vérifier que Caddy voit Cairn :
 
 ```bash
-cd ~/metricove/deploy
-docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
+docker exec antoinequarroz-caddy wget -qSO /dev/null http://cairn:3000/login
 ```
 
-Le certificat HTTPS arrive en moins d'une minute.
+La première ligne doit dire `HTTP/1.1 200 OK`.
 
-Si Caddy répond « 502 » : `host.docker.internal` ne correspond pas à `172.17.0.1` sur ce VPS. Cherche la bonne adresse avec `docker compose exec caddy getent hosts host.docker.internal`, mets-la dans `CAIRN_BIND` (`~/cairn/deploy/.env`), puis relance `docker compose up -d` côté Cairn.
+## 3. Brancher le Caddy partagé
+
+La configuration réellement lue par Caddy n'est **pas** le `Caddyfile` du dépôt vitrine, mais `~/.config/antoinequarroz-vitrine/runtime/Caddyfile` (monté par `compose.runtime.yml`, il survit aux déploiements de la vitrine). Sauvegarde-le, puis ajoute le bloc à la fin avec `cat >>`, pour garder le même fichier (c'est un montage, un éditeur qui le remplace casserait le lien) :
+
+```bash
+F=~/.config/antoinequarroz-vitrine/runtime/Caddyfile
+cp -p "$F" "$F.bak-$(date +%F)-cairn"
+cat >> "$F" <<'EOF'
+
+cairn.antoinequarroz.ch {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	# Fichiers joints (vidéos) jusqu'à 500 Mo
+	request_body {
+		max_size 500MB
+	}
+	reverse_proxy cairn:3000
+}
+EOF
+docker exec antoinequarroz-caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+docker exec antoinequarroz-caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+```
+
+Le certificat HTTPS arrive en moins d'une minute, **à condition que le DNS de l'étape 1 réponde déjà**. Sinon, recharge Caddy une fois le DNS en place.
+
+Si Caddy répond « 502 » : Cairn n'est pas sur le réseau `antoinequarroz-vitrine_appnet`. Vérifie avec `docker network inspect antoinequarroz-vitrine_appnet | grep -i cairn`, puis relance `docker compose up -d` côté Cairn.
 
 ## 4. Premier lancement
 
@@ -94,9 +122,9 @@ cd deploy && docker compose up -d --build
 
 Les données sont dans le volume Docker `cairn-data`, elles ne bougent pas.
 
-## Annexe : VPS sans Metricove
+## Annexe : serveur sans Caddy partagé
 
-Cairn apporte son propre Caddy :
+Sans `docker-compose.override.yml`, Cairn écoute sur `172.17.0.1:3020` (le pont Docker, réglable avec `CAIRN_BIND` et `CAIRN_PORT` dans `deploy/.env`), pour un proxy installé à côté. Sur un serveur vide, Cairn apporte son propre Caddy :
 
 ```bash
 cd ~/cairn/deploy

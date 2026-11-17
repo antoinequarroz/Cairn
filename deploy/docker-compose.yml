@@ -1,7 +1,7 @@
 # Cairn sur le VPS.
 #
-# Si Metricove tourne déjà sur ce VPS, son Caddy occupe les ports 80 et 443 : Cairn passe par lui
-# (voir docs/DEPLOIEMENT.md, étape 3).
+# Sur antoine-vps, le Caddy partagé (antoinequarroz-caddy) occupe les ports 80 et 443 : Cairn passe
+# par lui, via un docker-compose.override.yml local (voir docs/DEPLOIEMENT.md, étapes 2 et 3).
 #
 #   cd deploy && docker compose up -d --build
 #
