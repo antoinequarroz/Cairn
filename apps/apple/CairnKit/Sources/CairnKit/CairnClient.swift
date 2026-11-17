@@ -87,6 +87,36 @@ public actor CairnClient {
         return sessionToken
     }
 
+    // MARK: Compte Postmelo (server side: src/server/compte-app.ts)
+
+    /// Whether the server offers "Continuer avec mon Compte Postmelo". False when it can't tell (older server).
+    public func compteEnabled() async -> Bool {
+        guard let (data, response) = try? await send("GET", "/api/auth/compte/app", authenticated: false), response.statusCode == 200 else { return false }
+        return (try? JSONDecoder().decode(CompteReply.self, from: data))?.enabled == true
+    }
+
+    /// Where the sign-in sheet starts. `challenge`: `CompteSignIn.challenge`.
+    public nonisolated func compteStartURL(challenge: String) -> URL? {
+        var components = URLComponents(url: baseURL.appendingPathComponent("api/auth/compte/start"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "app", value: challenge)]
+        return components?.url
+    }
+
+    /// Trades the handoff the sheet came back with for the session. Throws `.needCode` when Cairn's own code is asked.
+    public func compteFinish(handoff: String, verifier: String, code: String? = nil) async throws -> String? {
+        var payload: [String: String?] = ["handoff": handoff, "verifier": verifier]
+        if let code, !code.isEmpty { payload["code"] = code }
+        let (data, response) = try await send("POST", "/api/auth/compte/app", json: payload, authenticated: false)
+        let reply = (try? JSONDecoder().decode(LoginReply.self, from: data)) ?? LoginReply()
+        if response.statusCode == 401 {
+            if reply.needCode == true { throw CairnError.needCode(code == nil ? nil : reply.error) }
+            throw CairnError.wrongPassword(reply.error ?? "La connexion a expiré, recommence")
+        }
+        try check(response, data)
+        sessionToken = Self.cookieValue(response, url: baseURL)
+        return sessionToken
+    }
+
     public func logout() async {
         _ = try? await send("POST", "/api/auth/logout")
         sessionToken = nil
@@ -249,6 +279,7 @@ public actor CairnClient {
     }
 }
 
+private struct CompteReply: Decodable { var enabled: Bool? }
 private struct LoginReply: Decodable { var ok: Bool?; var needCode: Bool?; var error: String? }
 private struct ErrorReply: Decodable { var error: String }
 private struct NotesReply: Decodable { var notes: [NoteSummary] }

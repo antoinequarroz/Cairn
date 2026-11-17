@@ -68,6 +68,24 @@ final class AppModel {
         guard let url = CairnClient.serverURL(from: server) else { throw CairnError.invalidServer }
         let candidate = CairnClient(baseURL: url)
         let token = try await candidate.login(password: password, code: code)
+        await adopt(candidate, url: url, token: token)
+    }
+
+    /// Whether the server at this address offers "Continuer avec mon Compte Postmelo".
+    func compteEnabled(server: String) async -> Bool {
+        guard let url = CairnClient.serverURL(from: server) else { return false }
+        return await CairnClient(baseURL: url).compteEnabled()
+    }
+
+    /// End of "Continuer avec mon Compte Postmelo": the handoff the sign-in sheet came back with.
+    func finishCompte(server: String, handoff: String, verifier: String, code: String?) async throws {
+        guard let url = CairnClient.serverURL(from: server) else { throw CairnError.invalidServer }
+        let candidate = CairnClient(baseURL: url)
+        let token = try await candidate.compteFinish(handoff: handoff, verifier: verifier, code: code)
+        await adopt(candidate, url: url, token: token)
+    }
+
+    private func adopt(_ candidate: CairnClient, url: URL, token: String?) async {
         Keychain.save(token ?? "", account: url.absoluteString)
         UserDefaults.standard.set(url.absoluteString, forKey: Self.serverKey)
         if url.absoluteString != serverAddress { offline = OfflineFile.load(server: url.absoluteString) ?? OfflineState() }
