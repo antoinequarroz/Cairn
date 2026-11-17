@@ -7,26 +7,31 @@ import { Button } from "@/components/ui";
 const input =
   "h-10 w-full rounded-lg border border-line-strong bg-surface px-3 text-[14px] outline-none focus:border-accent/60 focus:shadow-[0_0_0_3px_var(--accent-soft)]";
 
-/** `lamio`: the suite's messaging app can vouch for the person (see src/server/lamio.ts). */
-export function LoginForm({ lamio }: { lamio: boolean }) {
+// Back from the account service without a way in. The address only carries a keyword, never the text shown.
+const BACK: Record<string, string> = {
+  refus: "Le Compte Postmelo n'a pas ouvert l'accès. Réessaie, ou entre le mot de passe.",
+  acces: "Cairn n'est ouvert qu'aux administrateurs du Compte Postmelo.",
+  panne: "Le Compte Postmelo ne répond pas. Réessaie, ou entre le mot de passe.",
+};
+
+/** `compte`: the suite's account service can vouch for the person (see src/server/compte.ts). */
+export function LoginForm({ compte }: { compte: boolean }) {
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   // Second step: the password was right and two-factor is on. The password is sent again with the code.
   const [needCode, setNeedCode] = useState(false);
   const [recovery, setRecovery] = useState(false);
-  // Lamio vouched for the person in place of the password: only the code is left to give.
-  const [viaLamio, setViaLamio] = useState(false);
+  // The account vouched for the person in place of the password: only the code is left to give.
+  const [viaCompte, setViaCompte] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    const back = new URLSearchParams(window.location.search).get("lamio");
+    const back = new URLSearchParams(window.location.search).get("compte");
     if (back === "code") {
-      setViaLamio(true);
+      setViaCompte(true);
       setNeedCode(true);
-    }
-    // Back from Lamio without a way in: not signed in there, not allowed, or the link expired.
-    if (back === "refus") setError("Lamio n'a pas ouvert l'accès. Réessaie, ou entre le mot de passe.");
+    } else if (back && BACK[back]) setError(BACK[back]);
   }, []);
 
   const submit = async (e: React.FormEvent) => {
@@ -36,7 +41,7 @@ export function LoginForm({ lamio }: { lamio: boolean }) {
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(viaLamio ? { code } : needCode ? { password, code } : { password }),
+      body: JSON.stringify(viaCompte ? { code } : needCode ? { password, code } : { password }),
     });
     const data = (await res.json().catch(() => ({}))) as { error?: string; needCode?: boolean; };
     if (res.ok) {
@@ -54,7 +59,7 @@ export function LoginForm({ lamio }: { lamio: boolean }) {
 
   const back = () => {
     setNeedCode(false);
-    setViaLamio(false);
+    setViaCompte(false);
     setRecovery(false);
     setCode("");
     setError("");
@@ -119,15 +124,15 @@ export function LoginForm({ lamio }: { lamio: boolean }) {
             </button>
           </div>
         )}
-        {lamio && !needCode && (
+        {compte && !needCode && (
           <>
             <div className="my-4 flex items-center gap-3 text-[12px] text-ink-3">
               <span className="h-px flex-1 bg-line" />
               ou
               <span className="h-px flex-1 bg-line" />
             </div>
-            <a href="/api/auth/lamio/start" className="press flex h-9 w-full items-center justify-center rounded-lg border border-line-strong bg-surface text-[13.5px] font-medium text-ink hover:bg-surface-2">
-              Se connecter avec Lamio
+            <a href="/api/auth/compte/start" className="press flex h-9 w-full items-center justify-center rounded-lg border border-line-strong bg-surface text-[13.5px] font-medium text-ink hover:bg-surface-2">
+              Continuer avec mon Compte Postmelo
             </a>
           </>
         )}

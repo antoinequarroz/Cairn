@@ -53,11 +53,28 @@ Réglages > Sécurité > **Activer** : un QR code à scanner avec une app d'auth
 - `API_TOKEN` n'est pas concerné (scripts, Hermes) : garde-le long et secret.
 - Un fichier `two-factor.json` abîmé ne désactive pas la double authentification : personne n'entre jusqu'à ce qu'il soit réparé ou supprimé.
 
+## Compte Postmelo
+
+Avec `COMPTE_URL`, `COMPTE_CLIENT_SECRET` et `APP_URL`, la page de connexion propose **Continuer avec mon Compte Postmelo** : le service de compte de la suite se porte garant de la personne (OpenID Connect, code à usage unique avec PKCE, le secret ne passe jamais par le navigateur).
+
+- **Le mot de passe de Cairn reste valable.** C'est l'entrée de secours si le service de compte est en panne. Pour revenir en arrière, vide les trois variables.
+- **Administrateurs seulement.** Cairn n'a qu'un espace : qui entre lit toutes les notes. Un membre du compte est refusé, même si le compte lui ouvre Cairn, sauf avec `COMPTE_MEMBERS=true`.
+- **Connexion récente.** Il faut s'être identifié auprès du compte dans les 12 dernières heures, sinon il redemande le mot de passe. Cairn le vérifie aussi de son côté.
+- **La double authentification n'est jamais sautée.** Si le compte a la sienne, elle a déjà été passée. Sinon, et si elle est activée ici, Cairn demande son propre code après le retour du compte.
+- **Le coffre ne change pas.** Il reste fermé jusqu'au mot de passe maître, que ni Cairn ni le compte ne connaissent.
+- Se déconnecter de Cairn ne ferme pas la session du compte.
+- Les apps Mac et iPhone gardent le mot de passe de Cairn.
+
+Activer le Compte Postmelo ajoute une porte : la sécurité des notes dépend alors aussi de celle du compte. Active sa double authentification.
+
 ## Autour
 
 - Tout est privé sauf la page de connexion. En production, Cairn refuse de démarrer sans mot de passe.
 - 8 erreurs (mot de passe ou code, à la connexion comme dans Réglages) bloquent la connexion pendant 15 minutes.
-- Changer le mot de passe de l'app déconnecte tous les autres appareils.
+- Changer le mot de passe de l'app déconnecte tous les autres appareils. Réglages > Sécurité > **Déconnecter les autres appareils** fait de même sans changer de mot de passe (téléphone perdu, navigateur resté connecté). Se déconnecter sur un appareil n'efface que son cookie : pour couper un cookie qui aurait été copié, c'est ce bouton.
+- Le cookie de session est signé avec une clé aléatoire du serveur (`data/session.key`) : connaître le mot de passe ne suffit pas à en fabriquer un, il faut passer par la connexion (et donc par le code de double authentification). Supprimer `session.key` déconnecte tout le monde.
+- Une modification (POST, PUT, PATCH, DELETE) envoyée par une page d'un autre site est refusée, même avec le cookie. C'est utile parce que les autres apps de la suite (`*.postmelo.ch`) sont le « même site » pour le navigateur : `SameSite=Lax` ne suffirait pas.
+- Une politique de sécurité du contenu (CSP) limite ce que les pages chargent : scripts et requêtes restent sur Cairn. Si un texte piégé passait un jour le nettoyage du Markdown, il ne pourrait pas envoyer le coffre ouvert ailleurs avec `fetch()`.
 - `API_TOKEN` donne accès aux notes et aux fichiers, **jamais** aux routes du coffre ni aux réglages (mot de passe, clés d'IA), qui ne se gèrent que depuis un navigateur connecté.
 - Le Markdown est nettoyé avant affichage. Les fichiers joints qui ne sont pas des images, vidéos, sons ou PDF sont toujours téléchargés, jamais affichés : un fichier HTML envoyé ne peut pas exécuter de script sur l'app.
 - Cookie de session `HttpOnly`, `SameSite=Lax`, `Secure` en production.
