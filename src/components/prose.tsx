@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { codeLabel } from "@/lib/markdown";
 import { cn } from "@/lib/utils";
 
 // Lucide's "copy" and "check", inline: the buttons are added to sanitized HTML, outside React.
@@ -8,15 +9,6 @@ const COPY =
   '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>';
 const CHECK =
   '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
-
-const TERMINAL = /^(bash|sh|shell|zsh|console|terminal)$/i;
-
-/** The name shown on a code block: "Terminal" for shell code, else the language Markdown gave it. */
-export function codeLabel(className: string) {
-  const lang = className.match(/language-([\w+#-]+)/)?.[1] ?? "";
-  if (!lang) return "Code";
-  return TERMINAL.test(lang) ? "Terminal" : lang;
-}
 
 async function copyText(text: string) {
   try {
