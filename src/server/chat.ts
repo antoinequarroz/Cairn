@@ -1,7 +1,7 @@
 import "server-only";
 import { buildChatPrompt, titleFrom, type ChatNote } from "@/lib/chat";
 import { AiError, aiStatus, streamCompletion } from "./ai";
-import { addMessage, db, folderChain, getConversation, getNote, listMessages, updateConversation, updateMessage } from "./db";
+import { addMessage, conversationNonce, db, folderChain, getConversation, getNote, listMessages, setConversationNonce, updateConversation, updateMessage } from "./db";
 
 /** An error whose message is safe to show, in French, with the HTTP status to send it with. */
 export class ChatError extends Error {
@@ -63,7 +63,9 @@ export async function sendChatMessage(conversationId: string, content: string): 
     if (note.encrypted) skippedNotes.push(note.title || "Sans titre");
     else notes.push({ id: note.id, title: note.title, content: note.content });
   }
-  const prompt = buildChatPrompt({ folders: folderChain(conversation.folderId), notes, history: listMessages(conversationId) });
+  const nonce = conversationNonce(conversationId);
+  const prompt = buildChatPrompt({ folders: folderChain(conversation.folderId), notes, history: listMessages(conversationId) }, nonce || undefined);
+  if (prompt.nonce !== nonce) setConversationNonce(conversationId, prompt.nonce);
   skippedNotes.push(...prompt.omittedNotes.map((n) => n.title || "Sans titre"));
 
   let upstream: ReadableStream<Uint8Array>;

@@ -147,6 +147,11 @@ describe("discussion : contexte", () => {
     expect(system.content).toContain("Réponds avec les commandes.");
     expect(system.content).toContain("reverse_proxy 172.17.0.1:3020");
     expect(JSON.stringify(bodies[0])).not.toContain("bloc-chiffre-illisible");
+    // The same identifier from one message to the next: the prompt starts the same way, the provider's cache can serve it.
+    const first = bodies[0].messages[0].content;
+    const again = provider([text("Troisième réponse"), END]);
+    await new Response((await sendChatMessage(c.id, "Troisième message")).stream).text();
+    expect(again[0].messages[0].content).toBe(first);
     expect(rest).toEqual([
       { role: "user", content: "Premier message" },
       { role: "assistant", content: "Première réponse" },

@@ -74,6 +74,9 @@ export function db() {
       folder_id text,
       title text not null default '',
       context_note_ids text not null default '[]',
+      -- Delimits the pinned notes in the prompt. Random, and the same for the whole discussion, so
+      -- the prompt keeps the same beginning from one message to the next (Anthropic's cache needs it).
+      prompt_nonce text not null default '',
       created_at text not null,
       updated_at text not null
     );
@@ -96,6 +99,8 @@ export function db() {
   const noteColumns = conn.prepare("pragma table_info(notes)").all() as { name: string }[];
   if (!noteColumns.some((c) => c.name === "folder_id")) conn.exec("alter table notes add column folder_id text");
   conn.exec("create index if not exists notes_folder on notes (folder_id)");
+  const conversationColumns = conn.prepare("pragma table_info(conversations)").all() as { name: string }[];
+  if (!conversationColumns.some((c) => c.name === "prompt_nonce")) conn.exec("alter table conversations add column prompt_nonce text not null default ''");
   // An answer still marked as streaming when the server starts was cut by a restart: nothing writes it anymore.
   conn.prepare("update messages set state = 'stopped' where state = 'streaming'").run();
   globalForDb.__cairnDb = conn;
@@ -126,13 +131,15 @@ export function createNote(input: { title?: string; content?: string; folderId?:
   return getNote(id)!;
 }
 
-/** `folderId`: undefined keeps the folder, null moves the note to the root. */
+/** `folderId`: undefined keeps the folder, null moves the note to the root. Moving a note does not change its date. */
 export function updateNote(id: string, patch: { title?: string; content?: string; encrypted?: boolean; folderId?: string | null }): Note | null {
   const cur = getNote(id);
   if (!cur) return null;
+  const touched =
+    (patch.title !== undefined && patch.title !== cur.title) || (patch.content !== undefined && patch.content !== cur.content) || (patch.encrypted !== undefined && patch.encrypted !== cur.encrypted);
   db()
     .prepare("update notes set title = ?, content = ?, encrypted = ?, folder_id = ?, updated_at = ? where id = ?")
-    .run(patch.title ?? cur.title, patch.content ?? cur.content, (patch.encrypted ?? cur.encrypted) ? 1 : 0, patch.folderId === undefined ? cur.folderId : patch.folderId, now(), id);
+    .run(patch.title ?? cur.title, patch.content ?? cur.content, (patch.encrypted ?? cur.encrypted) ? 1 : 0, patch.folderId === undefined ? cur.folderId : patch.folderId, touched ? now() : cur.updatedAt, id);
   return getNote(id);
 }
 
@@ -279,7 +286,7 @@ export function deleteFolder(id: string) {
 
 // --- Discussions with the AI ---------------------------------------------------------------------
 
-type ConversationRow = { id: string; folder_id: string | null; title: string; context_note_ids: string; created_at: string; updated_at: string };
+type ConversationRow = { id: string; folder_id: string | null; title: string; context_note_ids: string; prompt_nonce: string; created_at: string; updated_at: string };
 
 const parseIds = (json: string): string[] => {
   try {
@@ -313,19 +320,34 @@ export function createConversation(input: { folderId?: string | null; title?: st
   const t = now();
   const id = newId();
   db()
-    .prepare("insert into conversations (id, folder_id, title, context_note_ids, created_at, updated_at) values (?, ?, ?, ?, ?, ?)")
-    .run(id, input.folderId ?? null, input.title ?? "", JSON.stringify(input.contextNoteIds ?? []), t, t);
+    .prepare("insert into conversations (id, folder_id, title, context_note_ids, prompt_nonce, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?)")
+    .run(id, input.folderId ?? null, input.title ?? "", JSON.stringify(input.contextNoteIds ?? []), crypto.randomBytes(8).toString("hex"), t, t);
   return getConversation(id)!;
 }
 
-/** `folderId`: undefined keeps the folder, null moves the discussion to the root. */
+/**
+ * `folderId`: undefined keeps the folder, null moves the discussion to the root. Moving it does not
+ * change its date: it was not written in.
+ */
 export function updateConversation(id: string, patch: { title?: string; folderId?: string | null; contextNoteIds?: string[] }): Conversation | null {
   const cur = getConversation(id);
   if (!cur) return null;
+  const ids = patch.contextNoteIds ?? cur.contextNoteIds;
+  const touched = (patch.title !== undefined && patch.title !== cur.title) || JSON.stringify(ids) !== JSON.stringify(cur.contextNoteIds);
   db()
     .prepare("update conversations set title = ?, folder_id = ?, context_note_ids = ?, updated_at = ? where id = ?")
-    .run(patch.title ?? cur.title, patch.folderId === undefined ? cur.folderId : patch.folderId, JSON.stringify(patch.contextNoteIds ?? cur.contextNoteIds), now(), id);
+    .run(patch.title ?? cur.title, patch.folderId === undefined ? cur.folderId : patch.folderId, JSON.stringify(ids), touched ? now() : cur.updatedAt, id);
   return getConversation(id);
+}
+
+/** The discussion's prompt identifier. Only the server reads it: it never goes to the browser. */
+export function conversationNonce(id: string): string {
+  const r = db().prepare("select prompt_nonce from conversations where id = ?").get(id) as { prompt_nonce: string } | undefined;
+  return r?.prompt_nonce ?? "";
+}
+
+export function setConversationNonce(id: string, nonce: string) {
+  db().prepare("update conversations set prompt_nonce = ? where id = ?").run(nonce, id);
 }
 
 export function deleteConversation(id: string) {

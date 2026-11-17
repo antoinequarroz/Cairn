@@ -10,7 +10,7 @@ import { MAX_CHAT_MESSAGE, MAX_CONTEXT_NOTES } from "@/lib/chat";
 import { renderMarkdown } from "@/lib/markdown";
 import { folderPath, useNotes } from "@/lib/notes-store";
 import type { ChatMessage, Conversation, Note } from "@/lib/types";
-import { api, cn } from "@/lib/utils";
+import { api, ApiError, cn } from "@/lib/utils";
 import { FolderSelect } from "./folder-select";
 import { Button, inputClass } from "./ui";
 
@@ -32,18 +32,31 @@ export function Chat({ id }: { id: string }) {
   const scroller = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const stick = useRef(true);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // The pinned notes as last chosen, ahead of the server's answer: two quick picks must both stay.
+  const pinnedIds = useRef<string[] | null>(null);
+  const pinSaving = useRef<Promise<void>>(Promise.resolve());
 
-  const load = useCallback(async () => {
+  /** Reads the discussion again. Only a 404 means it is gone: a network hiccup keeps what is on screen. */
+  const fetchConversation = useCallback(async () => {
     try {
       const data = await api<{ conversation: Conversation; messages: ChatMessage[] }>(`/api/conversations/${id}`);
-      setConversation(data.conversation);
-      setMessages(data.messages);
+      setMissing(false);
       return data;
-    } catch {
-      setMissing(true);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) setMissing(true);
       return null;
     }
   }, [id]);
+
+  const load = useCallback(async () => {
+    const data = await fetchConversation();
+    if (data) {
+      setConversation(data.conversation);
+      setMessages(data.messages);
+    }
+    return data;
+  }, [fetchConversation]);
 
   useEffect(() => {
     load().then((data) => {
@@ -100,22 +113,38 @@ export function Chat({ id }: { id: string }) {
     abort.current = controller;
     // Refused before anything was saved (too long, no AI, an answer already running): the text goes back in the box.
     let refused = false;
+    let answerId = pending.id;
     try {
       const res = await fetch(`/api/conversations/${id}/messages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content }), signal: controller.signal });
       if (res.status === 401) window.location.href = "/login";
       if (!res.ok || !res.body) {
-        // 502: the message was saved, the AI failed. The discussion shows why.
-        refused = res.status !== 502;
+        // Only these mean nothing was saved. On a 502 the message was saved and the AI failed (the
+        // discussion shows why); on a 499 it was saved and stopped before the first word.
+        refused = [400, 404, 409, 503].includes(res.status);
         const data = (await res.json().catch(() => ({}))) as { error?: string };
+        if (res.status === 499) return;
         throw new Error(data.error ?? "L'IA n'a pas pu répondre");
+      }
+      // From now on the answer has its id on the server: a reload of the discussion keeps following it.
+      const saved = res.headers.get("X-Cairn-Message-Id");
+      if (saved) {
+        setMessages((m) => m.map((x) => (x.id === pending.id ? { ...x, id: saved } : x)));
+        answerId = saved;
       }
       const skipped = parseSkipped(res.headers.get("X-Cairn-Skipped-Notes"));
       if (skipped.length)
         toast(`${skipped.length > 1 ? `${skipped.length} notes épinglées n'ont pas été lues` : "Une note épinglée n'a pas été lue"} par l'IA`, {
           description: `${skipped.join(", ")}. Une note chiffrée n'est jamais envoyée, et une note trop longue ne tient pas dans la discussion.`,
         });
-      // The discussion now has its title, from this first message.
-      if (!conversation?.title) load().then((d) => d && (setTitle(d.conversation.title), touchConversation(d.conversation)));
+      // The discussion now has its title, from this first message. Only the title: the messages on
+      // screen are the live ones.
+      if (!conversation?.title)
+        fetchConversation().then((d) => {
+          if (!d) return;
+          setConversation(d.conversation);
+          setTitle(d.conversation.title);
+          touchConversation(d.conversation);
+        });
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let text = "";
@@ -124,7 +153,7 @@ export function Chat({ id }: { id: string }) {
         if (done) break;
         text += decoder.decode(value, { stream: true });
         const shown = text;
-        setMessages((m) => m.map((x) => (x.id === pending.id ? { ...x, content: shown } : x)));
+        setMessages((m) => m.map((x) => (x.id === answerId ? { ...x, content: shown } : x)));
       }
     } catch (e) {
       if (controller.signal.aborted) return;
@@ -152,8 +181,9 @@ export function Chat({ id }: { id: string }) {
   const del = async () => {
     if (!window.confirm("Supprimer cette discussion ? C'est définitif.")) return;
     try {
-      abort.current?.abort();
+      // The server stops the answer itself. The live copy is dropped only once the delete went through.
       await api(`/api/conversations/${id}`, { method: "DELETE" });
+      abort.current?.abort();
       removeConversation(id);
       router.push(conversation?.folderId ? `/folders/${conversation.folderId}` : "/chat");
     } catch (e) {
@@ -169,6 +199,28 @@ export function Chat({ id }: { id: string }) {
     } catch (e) {
       toast.error((e as Error).message);
     }
+  };
+
+  const savePinned = (next: string[]) => {
+    pinnedIds.current = next;
+    setConversation((c) => (c ? { ...c, contextNoteIds: next } : c));
+    // One save at a time, each sending the latest choice: an older answer never lands last.
+    pinSaving.current = pinSaving.current.then(async () => {
+      const ids = pinnedIds.current;
+      if (!ids) return;
+      try {
+        const { conversation: c } = await api<{ conversation: Conversation }>(`/api/conversations/${id}`, { method: "PATCH", json: { contextNoteIds: ids } });
+        touchConversation(c);
+        if (pinnedIds.current === ids) {
+          pinnedIds.current = null;
+          setConversation(c);
+        }
+      } catch (e) {
+        toast.error((e as Error).message);
+        pinnedIds.current = null;
+        load();
+      }
+    });
   };
 
   const pinned = useMemo(() => (conversation?.contextNoteIds ?? []).map((nid) => notes.find((n) => n.id === nid)).filter((n) => !!n), [conversation, notes]);
@@ -191,7 +243,7 @@ export function Chat({ id }: { id: string }) {
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="relative flex items-center gap-1.5 border-b border-line px-5 py-2.5 max-md:px-3">
         <FolderSelect value={conversation.folderId} onChange={(folderId) => saveConversation({ folderId })} className="max-w-[220px]" />
-        <Button size="sm" variant="ghost" onClick={() => setContextOpen(!contextOpen)} aria-expanded={contextOpen} title="Notes que l'IA lit avec chaque message" className={cn(pinned.length > 0 && "text-accent")}>
+        <Button ref={triggerRef} size="sm" variant="ghost" onClick={() => setContextOpen((o) => !o)} aria-expanded={contextOpen} title="Notes que l'IA lit avec chaque message" className={cn(pinned.length > 0 && "text-accent")}>
           <Paperclip className="size-3.5" />
           <span className="max-md:hidden">{pinned.length ? `${pinned.length} note${pinned.length > 1 ? "s" : ""} en contexte` : "Ajouter des notes"}</span>
           {pinned.length > 0 && <span className="md:hidden">{pinned.length}</span>}
@@ -202,7 +254,7 @@ export function Chat({ id }: { id: string }) {
             <Trash2 className="size-3.5" />
           </Button>
         </div>
-        {contextOpen && <ContextPicker conversation={conversation} onChange={(contextNoteIds) => saveConversation({ contextNoteIds })} onClose={() => setContextOpen(false)} />}
+        {contextOpen && <ContextPicker conversation={conversation} trigger={triggerRef} onChange={savePinned} onClose={() => setContextOpen(false)} />}
       </div>
 
       <input
@@ -260,7 +312,7 @@ export function Chat({ id }: { id: string }) {
               }
             }}
             rows={Math.min(8, Math.max(1, draft.split("\n").length))}
-            placeholder={status && !status.ready ? "Configure une IA dans Réglages > IA pour discuter" : "Écris un message… (Maj+Entrée pour aller à la ligne)"}
+            placeholder={status && !status.ready ? "Configure une IA dans Réglages > IA pour discuter" : "Écris un message…"}
             aria-label="Message"
             className="scroll-thin max-h-[200px] min-h-[36px] flex-1 resize-none bg-transparent px-2 py-1.5 text-[14px] leading-relaxed outline-none placeholder:text-ink-3"
           />
@@ -339,13 +391,14 @@ function AssistantMessage({ message, onSave }: { message: ChatMessage; onSave: (
 }
 
 /** Which notes the AI reads with each message. Notes of the discussion's folder come first. */
-function ContextPicker({ conversation, onChange, onClose }: { conversation: Conversation; onChange: (ids: string[]) => void; onClose: () => void }) {
+function ContextPicker({ conversation, trigger, onChange, onClose }: { conversation: Conversation; trigger: React.RefObject<HTMLButtonElement | null>; onChange: (ids: string[]) => void; onClose: () => void }) {
   const { notes, folders } = useNotes();
   const [query, setQuery] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const close = (e: MouseEvent | KeyboardEvent) => {
-      if (e instanceof KeyboardEvent ? e.key === "Escape" : !ref.current?.contains(e.target as Node)) onClose();
+      // A click on the button that opened it is left to the button, which toggles.
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !ref.current?.contains(e.target as Node) && !trigger.current?.contains(e.target as Node)) onClose();
     };
     document.addEventListener("mousedown", close);
     document.addEventListener("keydown", close);
@@ -353,7 +406,7 @@ function ContextPicker({ conversation, onChange, onClose }: { conversation: Conv
       document.removeEventListener("mousedown", close);
       document.removeEventListener("keydown", close);
     };
-  }, [onClose]);
+  }, [onClose, trigger]);
 
   const selected = new Set(conversation.contextNoteIds);
   const q = query.trim().toLowerCase();

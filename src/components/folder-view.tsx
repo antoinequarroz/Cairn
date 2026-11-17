@@ -23,6 +23,7 @@ export function FolderView({ id }: { id: string }) {
   const nameInput = useRef<HTMLInputElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const pending = useRef<{ name?: string; instructions?: string }>({});
+  const saving$ = useRef<Promise<void>>(Promise.resolve());
   const ready = useRef(false);
 
   // The store may load after this page: take the folder's values once, when it shows up.
@@ -38,20 +39,24 @@ export function FolderView({ id }: { id: string }) {
     }
   }, [folder, id, router]);
 
-  const flush = async () => {
+  const flush = () => {
     clearTimeout(timer.current);
     timer.current = undefined;
-    const patch = pending.current;
-    pending.current = {};
-    if (!Object.keys(patch).length) return;
-    try {
-      const { folder: saved } = await api<{ folder: Folder }>(`/api/folders/${id}`, { method: "PATCH", json: patch });
-      touchFolder(saved);
-      setSaving(Object.keys(pending.current).length ? "dirty" : "saved");
-    } catch (e) {
-      setSaving("error");
-      toast.error((e as Error).message, { id: "folder-save" });
-    }
+    // Saves run one after the other, each taking what is pending when it starts: an older save never lands last.
+    saving$.current = saving$.current.then(async () => {
+      const patch = pending.current;
+      pending.current = {};
+      if (!Object.keys(patch).length) return;
+      try {
+        const { folder: saved } = await api<{ folder: Folder }>(`/api/folders/${id}`, { method: "PATCH", json: patch });
+        touchFolder(saved);
+        setSaving(Object.keys(pending.current).length ? "dirty" : "saved");
+      } catch (e) {
+        setSaving("error");
+        toast.error((e as Error).message, { id: "folder-save" });
+      }
+    });
+    return saving$.current;
   };
   const change = (patch: { name?: string; instructions?: string }) => {
     Object.assign(pending.current, patch);

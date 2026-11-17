@@ -33,7 +33,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const typing = (e.target as HTMLElement).closest("input, textarea, [contenteditable=true]");
+      const typing = (e.target as HTMLElement).closest("input, textarea, select, [contenteditable=true]");
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setCommandOpen(!commandOpen);

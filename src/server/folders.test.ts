@@ -68,6 +68,8 @@ describe("dossiers", () => {
     expect(updateNote(note.id, { folderId: a.id })?.folderId).toBe(a.id);
     expect(updateNote(note.id, { title: "Renommée" })?.folderId).toBe(a.id);
     expect(updateNote(note.id, { folderId: null })?.folderId).toBeNull();
+    const old = updateNote(note.id, { title: "Ancienne" })!.updatedAt;
+    expect(updateNote(note.id, { folderId: a.id })?.updatedAt).toBe(old);
     const b = createFolder({ name: "B", parentId: a.id });
     expect(updateFolder(b.id, { parentId: null })?.parentId).toBeNull();
     expect(updateFolder(b.id, { instructions: "Réponds en français" })).toMatchObject({ parentId: null, name: "B", instructions: "Réponds en français" });

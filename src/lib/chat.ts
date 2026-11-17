@@ -23,6 +23,8 @@ export type ChatPrompt = {
   omittedNotes: ChatNote[];
   /** How many of the oldest messages were left out to fit MAX_HISTORY_CHARS. */
   droppedMessages: number;
+  /** The identifier used: the one given, or a new one when the given one appears in the content. */
+  nonce: string;
 };
 
 const newNonce = () => crypto.randomUUID().replaceAll("-", "").slice(0, 16);
@@ -77,9 +79,12 @@ export function fitHistory(turns: ChatTurn[], max = MAX_HISTORY_CHARS): { turns:
  *   the server cannot read them, and the caller leaves them out.
  *
  * Notes are untrusted material (pasted pages, notes written through the API): their delimiters carry
- * a random identifier that their text cannot guess, as in the editor's prompt.
+ * a random identifier that their text cannot guess, as in the editor's prompt. A discussion keeps the
+ * same identifier from one message to the next, so that the prompt starts the same way each time and
+ * the provider's cache can serve it. It is drawn again if it ever appears in the content.
  */
 export function buildChatPrompt(input: { folders: ChatFolder[]; notes: ChatNote[]; history: Pick<ChatMessage, "role" | "content" | "state">[] }, nonce = newNonce()): ChatPrompt {
+  if (!/^[a-z0-9]{8,}$/.test(nonce)) nonce = newNonce();
   const parts = [...input.folders.flatMap((f) => [f.name, f.instructions]), ...input.notes.flatMap((n) => [n.title, n.content])];
   while (parts.some((p) => p.includes(nonce))) nonce = newNonce();
 
@@ -124,5 +129,5 @@ export function buildChatPrompt(input: { folders: ChatFolder[]; notes: ChatNote[
   }
   if (dropped) lines.push("", `The beginning of this discussion (${dropped} messages) is too long to be included here: only the most recent messages follow.`);
 
-  return { system: lines.join("\n"), messages: turns, omittedNotes, droppedMessages: dropped };
+  return { system: lines.join("\n"), messages: turns, omittedNotes, droppedMessages: dropped, nonce };
 }

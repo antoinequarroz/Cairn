@@ -28,7 +28,7 @@ const MODES: { mode: Mode; label: string; Icon: typeof Eye }[] = [
 
 export function Editor({ id }: { id: string }) {
   const router = useRouter();
-  const { touch, remove, move, newConversation } = useNotes();
+  const { notes, touch, remove, move, newConversation } = useNotes();
   const key = useVaultKey();
   const [note, setNote] = useState<Note | null>(null);
   const [missing, setMissing] = useState(false);
@@ -207,6 +207,9 @@ export function Editor({ id }: { id: string }) {
   if (!note) return <div className="flex-1" />;
 
   const locked = note.encrypted && content === null;
+  // Where the note is filed: the sidebar may move it (drag and drop) while it is open, the store knows.
+  const filed = notes.find((n) => n.id === id);
+  const folderId = filed ? filed.folderId : note.folderId;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -234,17 +237,10 @@ export function Editor({ id }: { id: string }) {
             <Paperclip className="size-3.5" />
             <span className="max-md:hidden">Joindre</span>
           </Button>
-          <FolderSelect
-            value={note.folderId}
-            onChange={async (folderId) => {
-              await move("note", id, folderId);
-              setNote((n) => (n ? { ...n, folderId } : n));
-            }}
-            className="max-w-[180px]"
-          />
+          <FolderSelect value={folderId} onChange={(f) => move("note", id, f)} className="max-w-[180px]" />
           <AiButton ai={ai} disabled={locked} />
           {!note.encrypted && (
-            <Button size="sm" variant="ghost" onClick={async () => { await flush(); newConversation(note.folderId, [id]); }} title="Ouvrir une discussion avec l'IA, cette note en contexte">
+            <Button size="sm" variant="ghost" onClick={async () => { await flush(); newConversation(folderId, [id]); }} title="Ouvrir une discussion avec l'IA, cette note en contexte">
               <MessagesSquare className="size-3.5" />
               <span className="max-lg:hidden">Discuter</span>
             </Button>
