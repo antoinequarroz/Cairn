@@ -273,3 +273,37 @@ export function activeFormats(text: string, start: number, end: number) {
   }
   return { block: blockOf(line), inline };
 }
+
+/** A highlighted box: a quote that opens with an emoji and a bold label, the text to type selected. */
+export function callout(text: string, start: number, end: number, emoji: string, label: string): Edit {
+  const body = text.slice(start, end).trim() || "Ton texte ici";
+  const head = `> ${emoji} **${label}**\n> `;
+  const quoted = body.split("\n").join("\n> ");
+  return insertBlock(text, start, end, head + quoted, [head.length, head.length + quoted.length]);
+}
+
+/** A section that opens on a click (HTML <details>, which Markdown lets through). */
+export function toggleBlock(text: string, start: number, end: number): Edit {
+  const body = text.slice(start, end).trim() || "Contenu caché";
+  const title = "Titre du bloc";
+  const block = `<details>\n<summary>${title}</summary>\n\n${body}\n\n</details>`;
+  const at = "<details>\n<summary>".length;
+  return insertBlock(text, start, end, block, [at, at + title.length]);
+}
+
+/** A code block for a given language, e.g. "bash" for terminal commands. */
+export function fencedCode(text: string, start: number, end: number, lang: string): Edit {
+  const body = text.slice(start, end);
+  const open = "```" + lang + "\n";
+  return insertBlock(text, start, end, open + body + "\n```", [open.length, open.length + body.length]);
+}
+
+/** Plain text at the caret, in place of the selection. */
+export function insertText(start: number, end: number, value: string): Edit {
+  return { from: start, to: end, insert: value, selStart: start + value.length, selEnd: start + value.length };
+}
+
+/** A link to another note of Cairn. Brackets in the title would end the link text early. */
+export function noteLink(start: number, end: number, note: { id: string; title: string }): Edit {
+  return insertText(start, end, `[${(note.title || "Sans titre").replace(/[[\]]/g, "")}](/notes/${note.id})`);
+}

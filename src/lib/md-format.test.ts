@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeFormats, blockOf, codeBlock, continueList, indentList, insertBlock, link, setBlock, toggleInline, type Edit } from "./md-format";
+import { activeFormats, blockOf, callout, codeBlock, continueList, fencedCode, indentList, insertBlock, link, noteLink, setBlock, toggleBlock, toggleInline, type Edit } from "./md-format";
 
 /** Applies an edit and shows the selection with [ ] (or | for a caret), to read the expectations at a glance. */
 function show(text: string, e: Edit | null) {
@@ -134,5 +134,21 @@ describe("activeFormats", () => {
     expect(at("- un *ita|l* x")).toEqual(["bullet", "italic"]);
     expect(at("***to|us***")).toEqual(["paragraph", "bold,italic"]);
     expect(at("`a**|b**`")).toEqual(["paragraph", "code"]);
+  });
+});
+
+describe("more blocks", () => {
+  it("makes a callout with the text to type selected", () => {
+    expect(run((t, a, b) => callout(t, a, b, "💡", "À savoir"), "|")).toBe("> 💡 **À savoir**\n> [Ton texte ici]\n");
+    expect(run((t, a, b) => callout(t, a, b, "⚠️", "Attention"), "[un\ndeux]")).toBe("> ⚠️ **Attention**\n> [un\n> deux]\n");
+  });
+  it("makes a block that opens on a click", () => {
+    expect(run(toggleBlock, "|")).toBe("<details>\n<summary>[Titre du bloc]</summary>\n\nContenu caché\n\n</details>\n");
+  });
+  it("makes a code block for a language", () => {
+    expect(run((t, a, b) => fencedCode(t, a, b, "bash"), "|")).toBe("```bash\n|\n```\n");
+  });
+  it("links to a note", () => {
+    expect(run((_t, a, b) => noteLink(a, b, { id: "abc", title: "Plan [v2]" }), "voir |")).toBe("voir [Plan v2](/notes/abc)|");
   });
 });

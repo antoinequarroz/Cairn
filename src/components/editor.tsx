@@ -154,7 +154,9 @@ export function Editor({ id }: { id: string }) {
   );
   const ai = useAi(aiTarget, !!note?.encrypted);
   const pickFile = useCallback(() => fileInput.current?.click(), []);
-  const fmt = useFormatting(area, pickFile);
+  const runAi = ai.run;
+  const linkable = useMemo(() => notes.filter((n) => n.id !== id), [notes, id]);
+  const fmt = useFormatting(area, { onUpload: pickFile, notes: linkable, ai: note?.encrypted ? null : runAi });
 
   const upload = async (files: File[]) => {
     for (const file of files) {

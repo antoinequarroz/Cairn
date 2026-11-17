@@ -2,7 +2,18 @@
 
 import {
   Bold,
+  CalendarDays,
+  ChevronsDownUp,
   CircleHelp,
+  Clock,
+  FileText,
+  Lightbulb,
+  SpellCheck,
+  SquareTerminal,
+  TextCursorInput,
+  TriangleAlert,
+  WandSparkles,
+  AlignLeft,
   Code,
   Heading1,
   Heading2,
@@ -22,7 +33,28 @@ import {
   Table,
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { activeFormats, codeBlock, continueList, divider, imageByUrl, indentList, link, setBlock, table, toggleInline, type BlockFormat, type Edit, type InlineFormat } from "@/lib/md-format";
+import type { AiAction } from "@/lib/ai";
+import {
+  activeFormats,
+  callout,
+  codeBlock,
+  continueList,
+  divider,
+  fencedCode,
+  imageByUrl,
+  indentList,
+  insertText,
+  link,
+  noteLink,
+  setBlock,
+  table,
+  toggleBlock,
+  toggleInline,
+  type BlockFormat,
+  type Edit,
+  type InlineFormat,
+} from "@/lib/md-format";
+import type { NoteSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Kbd } from "./ui";
 
@@ -46,15 +78,19 @@ export function applyEdit(el: HTMLTextAreaElement, e: Edit) {
   el.setSelectionRange(e.selStart, e.selEnd);
 }
 
+/** What a command does besides writing text: open the file picker, pick a note, or ask the AI. */
+type Special = "upload" | "note-link" | `ai:${AiAction}`;
+
 /** Every block that can be inserted: the toolbar, the shortcuts and the "/" menu share them. */
-type Command = {
+export type Command = {
   id: string;
   label: string;
   hint: string;
   Icon: typeof Bold;
   keywords: string;
-  /** "upload" opens the file picker instead of writing text. */
-  run: Run | "upload";
+  /** The heading it is listed under in the "/" menu. */
+  section: string;
+  run: Run | Special;
 };
 
 const block =
@@ -66,24 +102,97 @@ const inline =
   (t, s, e) =>
     toggleInline(t, s, e, f);
 
+const today = () => {
+  const d = new Date();
+  return `${d.toLocaleDateString("fr-CH", { weekday: "long" })} ${d.toLocaleDateString("fr-CH", { day: "numeric", month: "long", year: "numeric" })}`;
+};
+const now = () => new Date().toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" });
+
 export const BLOCKS: Command[] = [
-  { id: "paragraph", label: "Texte", hint: "Un paragraphe normal", Icon: Pilcrow, keywords: "texte paragraphe normal text", run: block("paragraph") },
-  { id: "h1", label: "Titre 1", hint: "Grand titre de section", Icon: Heading1, keywords: "titre h1 heading grand", run: block("h1") },
-  { id: "h2", label: "Titre 2", hint: "Titre moyen", Icon: Heading2, keywords: "titre h2 heading sous-titre", run: block("h2") },
-  { id: "h3", label: "Titre 3", hint: "Petit titre", Icon: Heading3, keywords: "titre h3 heading", run: block("h3") },
-  { id: "bullet", label: "Liste à puces", hint: "Une liste simple", Icon: List, keywords: "liste puces bullet ul", run: block("bullet") },
-  { id: "numbered", label: "Liste numérotée", hint: "1, 2, 3…", Icon: ListOrdered, keywords: "liste numerotee numérotée ordonnee ol nombre", run: block("numbered") },
-  { id: "task", label: "Liste de tâches", hint: "Des cases à cocher", Icon: ListTodo, keywords: "taches tâches todo checklist case cocher", run: block("task") },
-  { id: "quote", label: "Citation", hint: "Un passage mis en retrait", Icon: Quote, keywords: "citation quote retrait", run: block("quote") },
-  { id: "code", label: "Bloc de code", hint: "Du code sur plusieurs lignes", Icon: SquareCode, keywords: "code bloc programme script", run: codeBlock },
-  { id: "table", label: "Tableau", hint: "Trois colonnes à remplir", Icon: Table, keywords: "tableau table colonnes grille", run: table },
-  { id: "divider", label: "Séparateur", hint: "Une ligne horizontale", Icon: Minus, keywords: "separateur séparateur ligne divider hr", run: divider },
-  { id: "upload", label: "Image, vidéo ou fichier", hint: "Depuis ton appareil", Icon: ImagePlus, keywords: "image photo video vidéo fichier joindre upload media", run: "upload" },
-  { id: "image-url", label: "Image par lien", hint: "Une image déjà en ligne", Icon: ImageIcon, keywords: "image lien url web", run: imageByUrl },
-  { id: "link", label: "Lien", hint: "Vers une page web", Icon: LinkIcon, keywords: "lien link url web", run: link },
+  { id: "paragraph", section: "Texte", label: "Texte", hint: "Un paragraphe normal", Icon: Pilcrow, keywords: "texte paragraphe normal text", run: block("paragraph") },
+  { id: "h1", section: "Texte", label: "Titre 1", hint: "Grand titre de section", Icon: Heading1, keywords: "titre h1 heading grand", run: block("h1") },
+  { id: "h2", section: "Texte", label: "Titre 2", hint: "Titre moyen", Icon: Heading2, keywords: "titre h2 heading sous-titre", run: block("h2") },
+  { id: "h3", section: "Texte", label: "Titre 3", hint: "Petit titre", Icon: Heading3, keywords: "titre h3 heading", run: block("h3") },
+  { id: "quote", section: "Texte", label: "Citation", hint: "Un passage mis en retrait", Icon: Quote, keywords: "citation quote retrait", run: block("quote") },
+  { id: "bullet", section: "Listes", label: "Liste à puces", hint: "Une liste simple", Icon: List, keywords: "liste puces bullet ul", run: block("bullet") },
+  { id: "numbered", section: "Listes", label: "Liste numérotée", hint: "1, 2, 3…", Icon: ListOrdered, keywords: "liste numerotee ordonnee ol nombre etapes", run: block("numbered") },
+  { id: "task", section: "Listes", label: "Liste de tâches", hint: "Des cases à cocher", Icon: ListTodo, keywords: "taches todo checklist case cocher", run: block("task") },
+  {
+    id: "info",
+    section: "Blocs",
+    label: "Encadré « À savoir »",
+    hint: "Mettre une info en avant",
+    Icon: Lightbulb,
+    keywords: "encadre callout info astuce note savoir important",
+    run: (t, s, e) => callout(t, s, e, "💡", "À savoir"),
+  },
+  {
+    id: "warning",
+    section: "Blocs",
+    label: "Encadré « Attention »",
+    hint: "Un avertissement",
+    Icon: TriangleAlert,
+    keywords: "encadre callout attention avertissement warning danger",
+    run: (t, s, e) => callout(t, s, e, "⚠️", "Attention"),
+  },
+  {
+    id: "toggle",
+    section: "Blocs",
+    label: "Bloc repliable",
+    hint: "Du contenu qui s'ouvre d'un clic",
+    Icon: ChevronsDownUp,
+    keywords: "repliable toggle depliant details cacher accordeon",
+    run: toggleBlock,
+  },
+  { id: "code", section: "Blocs", label: "Bloc de code", hint: "Du code sur plusieurs lignes", Icon: SquareCode, keywords: "code bloc programme script", run: codeBlock },
+  {
+    id: "terminal",
+    section: "Blocs",
+    label: "Commandes terminal",
+    hint: "Bash, SSH, commandes du VPS",
+    Icon: SquareTerminal,
+    keywords: "terminal bash shell ssh commande vps serveur console",
+    run: (t, s, e) => fencedCode(t, s, e, "bash"),
+  },
+  { id: "table", section: "Blocs", label: "Tableau", hint: "Trois colonnes à remplir", Icon: Table, keywords: "tableau table colonnes grille", run: table },
+  { id: "divider", section: "Blocs", label: "Séparateur", hint: "Une ligne horizontale", Icon: Minus, keywords: "separateur ligne divider hr", run: divider },
+  {
+    id: "upload",
+    section: "Médias et liens",
+    label: "Image, vidéo ou fichier",
+    hint: "Depuis ton appareil",
+    Icon: ImagePlus,
+    keywords: "image photo video fichier joindre upload media pdf audio",
+    run: "upload",
+  },
+  { id: "image-url", section: "Médias et liens", label: "Image par lien", hint: "Une image déjà en ligne", Icon: ImageIcon, keywords: "image lien url web", run: imageByUrl },
+  { id: "link", section: "Médias et liens", label: "Lien", hint: "Vers une page web", Icon: LinkIcon, keywords: "lien link url web", run: link },
+  { id: "note-link", section: "Médias et liens", label: "Lien vers une note", hint: "Une autre note de Cairn", Icon: FileText, keywords: "note lien interne page mention reference", run: "note-link" },
+  {
+    id: "date",
+    section: "Insérer",
+    label: "Date du jour",
+    hint: "Par exemple « mardi 17 novembre 2026 »",
+    Icon: CalendarDays,
+    keywords: "date jour aujourd'hui today",
+    run: (_t, s, e) => insertText(s, e, today()),
+  },
+  { id: "time", section: "Insérer", label: "Heure", hint: "L'heure qu'il est", Icon: Clock, keywords: "heure maintenant time now", run: (_t, s, e) => insertText(s, e, now()) },
 ];
 
-const normalize = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+/** Only offered when the note can go to the AI (not end-to-end encrypted). */
+export const AI_COMMANDS: Command[] = [
+  { id: "ai-continue", section: "IA", label: "Continuer avec l'IA", hint: "La suite de ce qui est écrit", Icon: TextCursorInput, keywords: "ia ai continuer suite ecrire claude", run: "ai:continue" },
+  { id: "ai-summarize", section: "IA", label: "Résumer la note", hint: "Les points clés", Icon: AlignLeft, keywords: "ia ai resumer resume synthese", run: "ai:summarize" },
+  { id: "ai-rewrite", section: "IA", label: "Améliorer la rédaction", hint: "Plus clair, même sens", Icon: WandSparkles, keywords: "ia ai ameliorer reformuler rediger", run: "ai:rewrite" },
+  { id: "ai-fix", section: "IA", label: "Corriger l'orthographe", hint: "Fautes et ponctuation", Icon: SpellCheck, keywords: "ia ai corriger orthographe fautes grammaire", run: "ai:fix" },
+];
+
+const normalize = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 
 function useIsMac() {
   const [mac, setMac] = useState(false);
@@ -123,7 +232,7 @@ function caretPosition(el: HTMLTextAreaElement, at: number) {
   Object.assign(div.style, { position: "absolute", visibility: "hidden", whiteSpace: "pre-wrap", overflowWrap: "break-word", top: "0", left: "-9999px" });
   div.textContent = el.value.slice(0, at);
   const span = document.createElement("span");
-  span.textContent = "​";
+  span.textContent = "\u200b";
   div.append(span);
   document.body.append(div);
   const pos = { top: span.offsetTop - el.scrollTop, left: span.offsetLeft, height: parseFloat(style.lineHeight) || 20 };
@@ -131,10 +240,20 @@ function caretPosition(el: HTMLTextAreaElement, at: number) {
   return pos;
 }
 
-type Slash = { at: number; query: string; index: number; top: number; left: number };
+/** "blocks": what follows a "/". "notes": picking the note to link to, after "Lien vers une note". */
+/** `top` and `bottom` are the caret line's, in the editor area: the menu opens below it, or above when there is no room. */
+type Slash = { mode: "blocks" | "notes"; at: number; query: string; index: number; top: number; bottom: number; left: number };
+
+type Options = {
+  onUpload: () => void;
+  /** Notes that "Lien vers une note" can point to. */
+  notes: NoteSummary[];
+  /** The AI, when this note may use it. */
+  ai: ((action: AiAction, label: string) => void) | null;
+};
 
 /** The formatting state of one editor: what the caret is in, the "/" menu, and the key handling. */
-export function useFormatting(area: Area, onUpload: () => void) {
+export function useFormatting(area: Area, { onUpload, notes, ai }: Options) {
   const [active, setActive] = useState<ReturnType<typeof activeFormats>>({ block: "paragraph", inline: new Set() });
   const [slash, setSlash] = useState<Slash | null>(null);
   const slashRef = useRef(slash);
@@ -143,18 +262,64 @@ export function useFormatting(area: Area, onUpload: () => void) {
   });
 
   const exec = useCallback(
-    (run: Run | "upload") => {
+    (run: Run | Special, label = "") => {
       const el = area.current;
       if (run === "upload") return onUpload();
       if (!el) return;
+      if (run === "note-link") {
+        // Same place, same position: the menu now lists notes, filtered by what is typed next.
+        const at = el.selectionStart;
+        // The menu that was just closed knows where the line is.
+        const was = slashRef.current;
+        setSlash({ mode: "notes", at, query: "", index: 0, top: was?.top ?? 0, bottom: was?.bottom ?? 0, left: was?.left ?? 0 });
+        return;
+      }
+      if (typeof run === "string") return ai?.(run.slice(3) as AiAction, label);
       applyEdit(el, run(el.value, el.selectionStart, el.selectionEnd));
     },
-    [area, onUpload],
+    [area, onUpload, ai],
   );
 
-  const query = slash?.query;
-  const open = !!slash;
-  const matches = useMemo(() => (open ? BLOCKS.filter((c) => !query || normalize(`${c.label} ${c.keywords}`).includes(normalize(query))) : []), [open, query]);
+  const filter = useCallback(
+    (mode: Slash["mode"] | undefined, query: string): Command[] => {
+      if (mode === "notes") {
+        const q = normalize(query.trim());
+        return notes
+          .filter((n) => !q || normalize(n.title || "Sans titre").includes(q))
+          .slice(0, 30)
+          .map((n) => ({
+            id: n.id,
+            section: "Notes",
+            label: n.title || "Sans titre",
+            hint: n.encrypted ? "Note chiffrée" : n.excerpt || "Note vide",
+            Icon: FileText,
+            keywords: "",
+            run: (_t, s, e) => noteLink(s, e, n),
+          }));
+      }
+      if (mode !== "blocks") return [];
+      const all = ai ? [...BLOCKS, ...AI_COMMANDS] : BLOCKS;
+      const q = normalize(query);
+      if (!q) return all;
+      // Best matches first: the name starting with what was typed, then a word of the name, then the keywords.
+      const rank = (c: Command) => {
+        const label = normalize(c.label);
+        if (label.startsWith(q)) return 0;
+        if (label.split(/[^a-z0-9]+/).some((w) => w.startsWith(q))) return 1;
+        if (label.includes(q)) return 2;
+        return normalize(c.keywords).includes(q) ? 3 : 9;
+      };
+      return all
+        .map((c) => [rank(c), c] as const)
+        .filter(([r]) => r < 9)
+        .sort((a, b) => a[0] - b[0])
+        .map(([, c]) => c);
+    },
+    [notes, ai],
+  );
+  const matches = useMemo(() => filter(slash?.mode, slash?.query ?? ""), [filter, slash?.mode, slash?.query]);
+  /** What the menu lists right now. Read from the text, because a fast typist presses Enter before the menu's state catches up. */
+  const live = useCallback((el: HTMLTextAreaElement, s: Slash) => filter(s.mode, el.value.slice(s.mode === "notes" ? s.at : s.at + 1, el.selectionStart)), [filter]);
 
   const choose = useCallback(
     (c: Command) => {
@@ -162,9 +327,9 @@ export function useFormatting(area: Area, onUpload: () => void) {
       const s = slashRef.current;
       setSlash(null);
       if (!el || !s) return;
-      // Take the "/query" away, then insert the block where it was.
-      applyEdit(el, { from: s.at, to: el.selectionStart, insert: "", selStart: s.at, selEnd: s.at });
-      exec(c.run);
+      // Take the "/query" (or the note filter) away, then insert the block where it was.
+      if (el.selectionStart > s.at) applyEdit(el, { from: s.at, to: el.selectionStart, insert: "", selStart: s.at, selEnd: s.at });
+      exec(c.run, c.label);
     },
     [area, exec],
   );
@@ -178,6 +343,12 @@ export function useFormatting(area: Area, onUpload: () => void) {
       const s = slashRef.current;
       if (!s) return;
       const caret = el.selectionStart;
+      if (s.mode === "notes") {
+        const query = el.value.slice(s.at, caret);
+        if (caret < s.at || el.selectionEnd !== caret || query.includes("\n") || query.length > 60) setSlash(null);
+        else if (query !== s.query) setSlash({ ...s, query, index: 0 });
+        return;
+      }
       const query = el.value.slice(s.at + 1, caret);
       if (el.value[s.at] !== "/" || caret <= s.at || el.selectionEnd !== caret || /\s/.test(query) || query.length > 24) setSlash(null);
       else if (query !== s.query) setSlash({ ...s, query, index: 0 });
@@ -188,7 +359,7 @@ export function useFormatting(area: Area, onUpload: () => void) {
 
   // Nothing matches what follows the slash: it was just a slash.
   useEffect(() => {
-    if (slash && slash.query && !matches.length) setSlash(null);
+    if (slash?.mode === "blocks" && slash.query && !matches.length) setSlash(null);
   }, [slash, matches.length]);
 
   /** For the textarea's onInput: a "/" typed at the start of a line or after a space opens the menu. */
@@ -198,11 +369,8 @@ export function useFormatting(area: Area, onUpload: () => void) {
     const caret = el.selectionStart;
     if (data === "/" && el.selectionEnd === caret && (caret === 1 || /\s/.test(el.value[caret - 2]))) {
       const pos = caretPosition(el, caret - 1);
-      const below = el.offsetTop + pos.top + pos.height + 4;
-      // Near the bottom of the editor, the menu opens above the line instead.
-      const room = (el.offsetParent?.clientHeight ?? Infinity) - below;
-      const top = room < 220 && pos.top > 220 ? el.offsetTop + pos.top - 4 - Math.min(300, pos.top) : below;
-      setSlash({ at: caret - 1, query: "", index: 0, top, left: Math.min(el.offsetLeft + pos.left, el.offsetLeft + el.clientWidth - 268) });
+      const top = el.offsetTop + pos.top;
+      setSlash({ mode: "blocks", at: caret - 1, query: "", index: 0, top, bottom: top + pos.height, left: Math.min(el.offsetLeft + pos.left, el.offsetLeft + el.clientWidth - 268) });
     }
   }, []);
 
@@ -213,16 +381,24 @@ export function useFormatting(area: Area, onUpload: () => void) {
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       const el = e.currentTarget;
       const s = slashRef.current;
-      if (s && matches.length) {
+      if (s && s.mode === "notes" && e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        setSlash(null);
+        return;
+      }
+      const list = s ? live(el, s) : [];
+      if (s && list.length) {
         if (e.key === "ArrowDown" || e.key === "ArrowUp") {
           e.preventDefault();
-          const n = matches.length;
+          const n = list.length;
           setSlash({ ...s, index: (s.index + (e.key === "ArrowDown" ? 1 : -1) + n) % n });
           return;
         }
         if (e.key === "Enter" || e.key === "Tab") {
           e.preventDefault();
-          choose(matches[Math.min(s.index, matches.length - 1)]);
+          // The highlighted row, unless the list changed under it since.
+          choose(list[s.query === el.value.slice(s.mode === "notes" ? s.at : s.at + 1, el.selectionStart) ? Math.min(s.index, list.length - 1) : 0]);
           return;
         }
         if (e.key === "Escape") {
@@ -267,7 +443,7 @@ export function useFormatting(area: Area, onUpload: () => void) {
         if (e.key === "Tab") return go(indentList(el.value, el.selectionStart, el.selectionEnd, e.shiftKey));
       }
     },
-    [mac, matches, choose, exec],
+    [mac, live, choose, exec],
   );
 
   return { active, exec, slash, matches, choose, setSlash, onInput, onKeyDown, mac, close: () => setSlash(null) };
@@ -275,7 +451,7 @@ export function useFormatting(area: Area, onUpload: () => void) {
 
 export type Formatting = ReturnType<typeof useFormatting>;
 
-type Tool = { label: string; Icon: typeof Bold; run: Run | "upload"; on?: boolean; keys?: string };
+type Tool = { label: string; Icon: typeof Bold; run: Run | Special; on?: boolean; keys?: string };
 
 /** The formatting bar above the editor. Buttons never take the focus, so the selection stays in the text. */
 export function FormatToolbar({ fmt, disabled }: { fmt: Formatting; disabled?: boolean }) {
@@ -409,40 +585,55 @@ function HelpCard({ mac }: { mac: boolean }) {
 export function SlashMenu({ fmt }: { fmt: Formatting }) {
   const { slash, matches } = fmt;
   const list = useRef<HTMLDivElement>(null);
+  const [above, setAbove] = useState(false);
   useEffect(() => {
     list.current?.querySelector("[data-active=true]")?.scrollIntoView({ block: "nearest" });
   }, [slash?.index]);
-  if (!slash || !matches.length) return null;
+  // Below the line, unless the menu would run past the bottom of the editor and fits above.
+  const top = slash?.top ?? 0;
+  const bottom = slash?.bottom ?? 0;
+  useLayoutEffect(() => {
+    const el = list.current;
+    const room = el?.parentElement?.clientHeight;
+    if (!el || !room) return;
+    const h = el.offsetHeight;
+    setAbove(bottom + 4 + h > room && top - 4 - h >= 0);
+  }, [top, bottom, matches.length]);
+  if (!slash || (slash.mode === "blocks" && !matches.length)) return null;
   const index = Math.min(slash.index, matches.length - 1);
+  const notes = slash.mode === "notes";
   return (
     <div
       ref={list}
       role="listbox"
-      aria-label="Insérer un bloc"
-      style={{ top: slash.top, left: Math.max(8, slash.left) }}
-      className="scroll-thin pop-in absolute z-30 max-h-[300px] w-[260px] max-w-[calc(100vw-24px)] overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-card"
+      aria-label={notes ? "Choisir une note" : "Insérer un bloc"}
+      style={{ top: above ? slash.top - 4 - (list.current?.offsetHeight ?? 0) : slash.bottom + 4, left: Math.max(8, slash.left) }}
+      className="scroll-thin pop-in absolute z-30 max-h-[340px] w-[280px] max-w-[calc(100vw-24px)] overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-card"
     >
-      <p className="px-2 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wide text-ink-3">Insérer</p>
+      {notes && <p className="px-2 pb-1 pt-1.5 text-[11.5px] text-ink-3">Tape quelques lettres du titre de la note</p>}
+      {notes && !matches.length && <p className="px-2 py-2 text-[12.5px] text-ink-3">Aucune note ne correspond</p>}
       {matches.map((c, i) => (
-        <button
-          key={c.id}
-          type="button"
-          role="option"
-          aria-selected={i === index}
-          data-active={i === index}
-          onMouseDown={(e) => e.preventDefault()}
-          onMouseEnter={() => fmt.setSlash((s) => (s ? { ...s, index: i } : s))}
-          onClick={() => fmt.choose(c)}
-          className={cn("flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left", i === index ? "bg-accent-soft" : "hover:bg-ink/5")}
-        >
-          <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-md border border-line bg-surface-2", i === index ? "text-accent" : "text-ink-2")}>
-            <c.Icon className="size-4" />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-[13px] font-medium text-ink">{c.label}</span>
-            <span className="block truncate text-[11.5px] text-ink-3">{c.hint}</span>
-          </span>
-        </button>
+        <div key={c.id}>
+          {c.section !== matches[i - 1]?.section && !notes && <p className="px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-ink-3">{c.section}</p>}
+          <button
+            type="button"
+            role="option"
+            aria-selected={i === index}
+            data-active={i === index}
+            onMouseDown={(e) => e.preventDefault()}
+            onMouseEnter={() => fmt.setSlash((s) => (s ? { ...s, index: i } : s))}
+            onClick={() => fmt.choose(c)}
+            className={cn("flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left", i === index ? "bg-accent-soft" : "hover:bg-ink/5")}
+          >
+            <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-md border border-line bg-surface-2", i === index ? "text-accent" : "text-ink-2")}>
+              <c.Icon className="size-4" />
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-[13px] font-medium text-ink">{c.label}</span>
+              <span className="block truncate text-[11.5px] text-ink-3">{c.hint}</span>
+            </span>
+          </button>
+        </div>
       ))}
     </div>
   );
