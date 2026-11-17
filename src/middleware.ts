@@ -22,5 +22,5 @@ export const config = {
   // Node runtime: the password changed in Réglages is read from a file in DATA_DIR.
   runtime: "nodejs",
   // File chunks (api/uploads) are left out: the middleware would hold their body. That route checks the session itself.
-  matcher: ["/((?!login|api/auth/login|api/uploads/|_next/static|_next/image|icon.svg|favicon.ico|manifest.webmanifest).*)"],
+  matcher: ["/((?!login|api/auth/login|api/auth/lamio|api/uploads/|_next/static|_next/image|icon.svg|favicon.ico|manifest.webmanifest).*)"],
 };

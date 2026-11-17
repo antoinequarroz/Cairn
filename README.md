@@ -51,6 +51,7 @@ Copier `.env.example` en `.env.local` (en local) ou `.env` (sur le VPS) :
 | --- | --- |
 | `APP_PASSWORD` | Mot de passe de l'app. **Obligatoire en ligne.** Il se change ensuite dans **Réglages** : le nouveau est gardé (haché) dans `data/auth.json` et passe devant `APP_PASSWORD`. Mot de passe oublié : supprime ce fichier, `APP_PASSWORD` revient. |
 | `API_TOKEN` | Jeton pour Hermes et Claude Code (`Authorization: Bearer …` sur `/api`). N'ouvre jamais le coffre ni les réglages. |
+| `LAMIO_URL`, `LAMIO_SSO_SECRET` | Facultatif. Ajoute « Se connecter avec Lamio » : on entre avec son compte [Lamio](https://github.com/antoinequarroz/lamio), qui décide qui a accès (ses administrateurs, et les membres cochés dans Modules > Accès). Le secret est le même que `CAIRN_SSO_SECRET` côté Lamio, 32 caractères au moins. Le mot de passe continue de marcher. |
 | `CAIRN_SECRET` | Facultatif. Chiffre les clés d'IA saisies dans Réglages (sinon `data/secret.key`, créé tout seul). |
 | `DATA_DIR` | Dossier de la base SQLite et des fichiers joints (`./data` par défaut). |
 | `MAX_FILE_MB` | Taille maximale d'un fichier joint (500 Mo par défaut). |
