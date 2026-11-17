@@ -1,6 +1,40 @@
-export type NoteSummary = { id: string; title: string; encrypted: boolean; updatedAt: string; excerpt: string };
+export type NoteSummary = { id: string; title: string; encrypted: boolean; folderId: string | null; updatedAt: string; excerpt: string };
 
-export type Note = { id: string; title: string; content: string; encrypted: boolean; createdAt: string; updatedAt: string };
+export type Note = { id: string; title: string; content: string; encrypted: boolean; folderId: string | null; createdAt: string; updatedAt: string };
+
+/** A folder holds notes, discussions and other folders. A folder at the root is a project. */
+export type Folder = {
+  id: string;
+  parentId: string | null;
+  name: string;
+  /** Standing instructions for the AI in every discussion of this folder and of its subfolders. */
+  instructions: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ConversationSummary = { id: string; folderId: string | null; title: string; updatedAt: string };
+
+export type Conversation = ConversationSummary & {
+  /** Notes the AI reads with every message of this discussion. */
+  contextNoteIds: string[];
+  createdAt: string;
+};
+
+/**
+ * One message of a discussion. An answer is saved while it streams: `streaming` until it ends,
+ * then `done`, `stopped` (Stop pressed, or the server restarted) or `error`.
+ */
+export type ChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  state: "streaming" | "done" | "stopped" | "error";
+  error?: string;
+  /** Who answered, as shown to the user: "Claude (claude-opus-5-5)". */
+  model?: string;
+  createdAt: string;
+};
 
 /** Public parameters of the vault. Nothing here is secret, but none of it opens the vault without the master password. */
 export type VaultMeta = {

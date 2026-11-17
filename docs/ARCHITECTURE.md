@@ -43,12 +43,16 @@ Une seule app, une seule base, un seul conteneur. C'est volontairement la même 
 ```
 src/
   app/
-    (app)/            pages : notes, coffre, réglages
-    api/              routes : auth, notes, files, uploads, vault, settings, ai
+    (app)/            pages : notes, dossiers, discussions, coffre, réglages
+    api/              routes : auth, notes, folders, conversations, files,
+                      uploads, vault, settings, ai
     login/            page de connexion
     globals.css       tokens de design et rendu du Markdown
   components/         coque de l'app, éditeur, coffre, recherche
     ai-assistant.tsx  bouton « IA », son menu et le panneau de réponse
+    folder-tree.tsx   arbre des projets et dossiers de la barre latérale
+    folder-view.tsx   page d'un dossier : nom, consignes pour l'IA, contenu
+    chat.tsx          une discussion avec l'IA
   lib/
     crypto.ts         chiffrement du coffre (navigateur) + tests
     vault-store.ts    clé du coffre en mémoire, verrouillage automatique
@@ -56,11 +60,14 @@ src/
     upload.ts         envoi de fichiers par morceaux
     ai.ts             IA sans secret ni réseau : validation, prompts, choix du
                       fournisseur, lecture des flux SSE, insertion + tests
+    chat.ts           prompt d'une discussion : consignes, notes, historique + tests
   server/
     db.ts             SQLite : schéma et requêtes
     password.ts       mot de passe de l'app (scrypt)
     session.ts        qui a le droit d'entrer
     ai.ts             appel du fournisseur d'IA (clés, délais, erreurs)
+    chat.ts           un message d'une discussion : réponse lue jusqu'au bout et
+                      enregistrée au fil de l'eau, même si l'onglet se ferme
   middleware.ts       protège tout sauf la connexion
 deploy/               Docker, Caddy, sauvegarde
 ```
@@ -69,7 +76,10 @@ deploy/               Docker, Caddy, sauvegarde
 
 | Table | Contenu |
 | --- | --- |
-| `notes` | Titre, contenu (Markdown, ou bloc chiffré si `encrypted = 1`), dates |
+| `notes` | Titre, contenu (Markdown, ou bloc chiffré si `encrypted = 1`), dossier, dates |
+| `folders` | Arbre des dossiers (`parent_id`), nom, consignes pour l'IA. Un dossier racine est un projet |
+| `conversations` | Discussions avec l'IA : dossier, titre, notes épinglées (`context_note_ids`, JSON) |
+| `messages` | Un message par ligne, dans l'ordre (`seq`). Une réponse est écrite pendant qu'elle arrive (`state = 'streaming'`, puis `done`, `stopped` ou `error`) |
 | `vault_meta` | Une ligne : paramètres Argon2id, sel, clé du coffre chiffrée par le mot de passe maître |
 | `vault_items` | Un bloc chiffré par élément |
 | `files` | Nom, type et taille de chaque fichier joint |
@@ -112,3 +122,9 @@ Le chemin d'une demande :
 À savoir : un abonnement Claude ou ChatGPT s'utilise à travers leurs outils (Claude Code, Codex), pas comme une clé d'API dans une app. C'est pour cela que la première voie passe par Claude Code ou Hermes.
 
 L'IA ne voit jamais le coffre ni les notes verrouillées : le serveur ne peut pas les lire, et l'éditeur refuse d'envoyer à l'IA le texte d'une note chiffrée, même déverrouillée.
+
+## Pourquoi les discussions sont dans SQLite
+
+Un usage personnel tient largement dans le même fichier que les notes : quelques milliers de messages pèsent quelques mégaoctets. Pas de Postgres ni de base vectorielle à faire tourner sur un VPS de 2 Go, et une seule sauvegarde. Les discussions sont rangées dans les mêmes dossiers que les notes, avec les mêmes règles : lisibles par le serveur (il doit les envoyer au fournisseur), donc jamais chiffrées de bout en bout. La recherche plein texte (FTS5) pourra porter sur les notes et les discussions d'un coup.
+
+La réponse d'une discussion appartient au serveur : il lit le flux du fournisseur jusqu'au bout et l'enregistre au fil de l'eau (une écriture par seconde), le navigateur n'en reçoit qu'une copie. Les réponses en cours sont suivies en mémoire (un seul processus) ; une réponse encore « en cours » au démarrage a été coupée par un redémarrage et passe en « arrêtée ».

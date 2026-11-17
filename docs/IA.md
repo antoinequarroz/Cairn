@@ -24,6 +24,19 @@ La réponse ne va pas directement dans la note. Elle s'écrit dans un panneau so
 
 Si tu as modifié la note pendant que l'IA écrivait, Cairn retrouve le passage d'origine. S'il n'existe plus, il te le dit plutôt que d'écraser autre chose.
 
+## Les discussions
+
+À côté du bouton, Cairn garde de vraies **discussions** avec l'IA, rangées comme des notes :
+
+- **Projets et dossiers.** Un projet est un dossier à la racine de la barre latérale. Il contient des notes, des discussions et des sous-dossiers. On y range n'importe quoi en le glissant sur un dossier, ou avec le sélecteur de dossier en haut d'une note ou d'une discussion. Supprimer un dossier ne supprime rien d'autre : son contenu remonte d'un niveau.
+- **Consignes du projet.** La page d'un dossier a un champ « Consignes pour l'IA » (« ce projet parle de mon VPS Debian, réponds avec les commandes à taper »). Elles sont lues au début de chaque discussion du dossier et de ses sous-dossiers, celles du projet d'abord, celles du dossier le plus proche en dernier.
+- **Notes en contexte.** « Ajouter des notes » épingle des notes à la discussion : l'IA les relit avec chaque message (20 notes et 200 000 caractères au plus ; au-delà, Cairn dit lesquelles n'ont pas été lues). Depuis une note, **Discuter** ouvre une discussion avec cette note déjà épinglée.
+- **Rien ne se perd.** La réponse est écrite par le serveur, qui l'enregistre au fil de l'eau. Tu peux fermer l'onglet ou passer à autre chose : la réponse continue et t'attend dans la discussion. **Arrêter** la coupe et garde ce qui est déjà écrit.
+- **Enregistrer comme note** transforme une réponse en note, dans le même dossier que la discussion.
+- Le titre vient du premier message. Il se change en cliquant dessus.
+
+Une discussion envoie à chaque message tout son historique (les plus anciens messages sont laissés de côté au-delà de 300 000 caractères). Avec Claude, le début de la conversation est mis en cache chez Anthropic : les messages suivants le relisent pour un dixième du prix.
+
 ## Brancher une IA
 
 Le plus simple : **Réglages > Intelligence artificielle**, dans l'app. Tu y entres une clé d'API ou l'adresse de Hermes, tu choisis le fournisseur et le modèle, et le bouton **Tester** vérifie que ça répond (avec une phrase fixe : aucune note n'est envoyée). Les clés y sont gardées chiffrées sur le serveur et ne reviennent jamais dans le navigateur.
@@ -135,13 +148,17 @@ Quand tu choisis une action, et seulement à ce moment-là, Cairn envoie au four
 
 Rien d'autre : ni les autres notes, ni les fichiers joints, ni le coffre.
 
-**Jamais les notes chiffrées.** Sur une note avec le cadenas, l'IA est désactivée, même quand la note est déverrouillée : s'en servir enverrait le texte déchiffré au serveur, puis au fournisseur. Le bouton l'explique, et le code refuse d'envoyer la demande. Pour une note sensible, garde le cadenas et écris sans IA.
+Dans une **discussion**, à chaque message : l'historique de la discussion, le nom de son dossier et de ses parents, leurs consignes pour l'IA, et le texte des notes épinglées. Rien d'autre, et jamais une note chiffrée (voir plus bas).
+
+**Jamais les notes chiffrées.** Sur une note avec le cadenas, l'IA est désactivée, même quand la note est déverrouillée : s'en servir enverrait le texte déchiffré au serveur, puis au fournisseur. Le bouton l'explique, et le code refuse d'envoyer la demande. Pour une note sensible, garde le cadenas et écris sans IA. Une note chiffrée épinglée à une discussion n'est pas envoyée non plus : c'est le serveur qui lit les notes épinglées, et il n'a d'une note chiffrée qu'un bloc illisible. Il la laisse de côté et Cairn te le signale.
 
 Les clés d'API restent sur le serveur, chiffrées quand elles sont saisies dans Réglages : le navigateur ne les voit jamais.
 
 Le contenu d'une note et son titre sont présentés à l'IA comme un texte à travailler, pas comme des ordres. Ils sont placés entre des balises au nom tiré au hasard à chaque demande, qu'un texte collé ne peut ni deviner ni refermer. Si tu colles une page web qui contient « ignore tes instructions… », l'IA est censée ne pas obéir. C'est une précaution, pas une garantie : relis avant d'insérer. Avec Hermes, qui a des outils, la vraie barrière reste ce que tu as autorisé à l'agent.
 
-Dans le panneau, la réponse ne charge rien depuis un autre site : une image ou une vidéo distante y apparaît comme un simple lien (une adresse d'image peut servir à faire sortir du texte). Seuls tes fichiers joints s'affichent. Une fois la réponse insérée, l'aperçu de la note montre les images comme pour n'importe quelle note : si la réponse contient un lien d'image que tu n'attendais pas, ne l'insère pas.
+Les notes épinglées à une discussion sont présentées de la même façon : comme des documents à consulter, entre des balises au nom tiré au hasard, jamais comme des ordres. Les consignes du dossier, elles, sont tes instructions et sont suivies comme telles.
+
+Dans le panneau comme dans une discussion, la réponse ne charge rien depuis un autre site : une image ou une vidéo distante y apparaît comme un simple lien (une adresse d'image peut servir à faire sortir du texte). Seuls tes fichiers joints s'affichent. Une fois la réponse insérée, l'aperçu de la note montre les images comme pour n'importe quelle note : si la réponse contient un lien d'image que tu n'attendais pas, ne l'insère pas.
 
 Plus de détails dans [SECURITE.md](SECURITE.md).
 

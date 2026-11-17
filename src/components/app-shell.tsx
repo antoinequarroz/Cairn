@@ -1,19 +1,21 @@
 "use client";
 
-import { FileText, KeyRound, Lock, Plus, Search, Settings } from "lucide-react";
+import { FileText, KeyRound, MessagesSquare, Plus, Search, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { Toaster } from "sonner";
 import { NotesProvider, useNotes } from "@/lib/notes-store";
 import { lockVault, useVaultKey } from "@/lib/vault-store";
-import { cn, when } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { CommandMenu } from "./command-menu";
+import { FolderTree } from "./folder-tree";
 import { Logo } from "./logo";
 import { Kbd } from "./ui";
 
 const NAV = [
   { href: "/notes", label: "Notes", Icon: FileText },
+  { href: "/chat", label: "Discussions", Icon: MessagesSquare },
   { href: "/vault", label: "Coffre", Icon: KeyRound },
   { href: "/settings", label: "Réglages", Icon: Settings },
 ];
@@ -70,7 +72,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 function Sidebar() {
   const pathname = usePathname();
-  const { notes, newNote, setCommandOpen } = useNotes();
+  const { notes, conversations, newNote, setCommandOpen } = useNotes();
   const unlocked = !!useVaultKey();
 
   return (
@@ -83,7 +85,7 @@ function Sidebar() {
 
       <div className="mb-2 flex gap-1.5">
         <button
-          onClick={newNote}
+          onClick={() => newNote()}
           className="press flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent text-[13px] font-medium text-accent-ink shadow-[0_1px_0_rgba(255,255,255,0.25)_inset,0_6px_16px_-6px_var(--accent)] hover:brightness-[1.06]"
         >
           <Plus className="size-4" strokeWidth={2.4} />
@@ -110,33 +112,13 @@ function Sidebar() {
               <Icon className={cn("size-4", active ? "text-accent" : "text-ink-3")} strokeWidth={2} />
               {label}
               {href === "/notes" && notes.length > 0 && <span className="tabular ml-auto text-[11px] text-ink-3">{notes.length}</span>}
+              {href === "/chat" && conversations.length > 0 && <span className="tabular ml-auto text-[11px] text-ink-3">{conversations.length}</span>}
             </Link>
           );
         })}
       </nav>
 
-      <div className="mt-5 flex items-center justify-between px-2 pb-1.5">
-        <span className="text-[11px] font-medium tracking-wide text-ink-3 uppercase">Récentes</span>
-      </div>
-      <div className="scroll-thin -mx-1 flex min-h-0 flex-1 flex-col gap-px overflow-y-auto px-1">
-        {notes.map((n) => {
-          const active = pathname === `/notes/${n.id}`;
-          return (
-            <Link
-              key={n.id}
-              href={`/notes/${n.id}`}
-              className={cn("flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors duration-150", active ? "bg-surface shadow-card" : "hover:bg-ink/[0.04]")}
-            >
-              <span className="min-w-0 flex-1">
-                <span className={cn("block truncate text-[13px] leading-tight", !n.title && "text-ink-3")}>{n.title || "Sans titre"}</span>
-                <span className="block truncate text-[11.5px] leading-tight text-ink-3">{when(n.updatedAt)}</span>
-              </span>
-              {n.encrypted && <Lock className="size-3.5 shrink-0 text-accent" aria-label="Chiffrée de bout en bout" />}
-            </Link>
-          );
-        })}
-        {!notes.length && <p className="px-2 py-1 text-[12.5px] text-ink-3">Aucune note pour l&apos;instant.</p>}
-      </div>
+      <FolderTree />
 
       <div className="mt-2 flex flex-col gap-1.5 rounded-xl border border-line bg-surface/60 p-2.5">
         <div className="flex items-center gap-2 text-[12px]">
@@ -174,7 +156,7 @@ function MobileBar() {
       <button onClick={() => setCommandOpen(true)} aria-label="Rechercher" className="ml-auto flex size-9 items-center justify-center rounded-lg text-ink-3">
         <Search className="size-[18px]" />
       </button>
-      <button onClick={newNote} aria-label="Nouvelle note" className="press flex size-9 items-center justify-center rounded-lg bg-accent text-accent-ink">
+      <button onClick={() => newNote()} aria-label="Nouvelle note" className="press flex size-9 items-center justify-center rounded-lg bg-accent text-accent-ink">
         <Plus className="size-4" strokeWidth={2.4} />
       </button>
     </div>
