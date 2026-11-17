@@ -8,9 +8,13 @@ async function hmac(secret: string, message: string) {
   return Array.from(new Uint8Array(sig), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-/** Session token derived from the password: changing APP_PASSWORD logs everyone out. */
-export function sessionToken(password: string) {
-  return hmac(password, "cairn-session-v1");
+/**
+ * Session token: signed with the server's random session secret (DATA_DIR/session.key), over what the
+ * password and two-factor state are. Changing the password, two-factor, or the secret logs everyone out.
+ * The password alone is not enough to make one.
+ */
+export function sessionToken(secret: string, state: string) {
+  return hmac(secret, `cairn-session-v2\n${state}`);
 }
 
 export function safeEqual(a: string, b: string) {

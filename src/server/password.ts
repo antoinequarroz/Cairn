@@ -78,15 +78,70 @@ export async function checkPassword(given: unknown): Promise<boolean> {
   return !!env && safeEqual(given, env);
 }
 
+// The server's own session secret, 32 random bytes in DATA_DIR/session.key, created on first use.
+// Every session token is signed with it, so a token can't be worked out from the password alone
+// (with APP_PASSWORD, the token used to be a plain function of the password: anyone who knew the
+// password, and roughly when two-factor was turned on, could make one without ever passing the code).
+// Replacing the file logs every device out: that is "Déconnecter tous les appareils".
+const sessionKeyFile = () => path.join(path.resolve(process.env.DATA_DIR ?? "./data"), "session.key");
+let sessionKeyCache: { mtime: number; key: string } | undefined;
+
+function writeSessionKey(flag: "wx" | "w") {
+  fs.mkdirSync(path.dirname(sessionKeyFile()), { recursive: true });
+  if (flag === "wx") {
+    // "wx": never replace a key that appeared meanwhile (two requests at the first start).
+    fs.writeFileSync(sessionKeyFile(), crypto.randomBytes(32).toString("hex"), { mode: 0o600, flag: "wx" });
+    return;
+  }
+  const tmp = `${sessionKeyFile()}.tmp`;
+  fs.writeFileSync(tmp, crypto.randomBytes(32).toString("hex"), { mode: 0o600 });
+  fs.renameSync(tmp, sessionKeyFile());
+}
+
+/** The session secret. `null` when it can't be read nor created: nobody gets in then. */
+function sessionSecret(): string | null {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const mtime = fs.statSync(sessionKeyFile()).mtimeMs;
+      if (sessionKeyCache?.mtime === mtime) return sessionKeyCache.key;
+      const key = fs.readFileSync(sessionKeyFile(), "utf8").trim();
+      if (!/^[0-9a-f]{64}$/.test(key)) throw new Error("session.key invalide");
+      sessionKeyCache = { mtime, key };
+      return key;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "ENOENT" || attempt > 0) {
+        console.error("[auth] session.key illisible", e);
+        return null;
+      }
+      try {
+        writeSessionKey("wx");
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== "EEXIST") {
+          console.error("[auth] session.key impossible à créer", err);
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/** Logs every device out, this one included: the caller hands it a new cookie. */
+export function rotateSessionSecret() {
+  writeSessionKey("w");
+  sessionKeyCache = undefined;
+}
+
 /** The session cookie value. Changing the password changes it, which logs every other device out. */
 export async function currentSessionToken(): Promise<string | null> {
   const f = readAuthFile();
   const env = process.env.APP_PASSWORD;
   const base = f ? (f === "broken" ? BROKEN_KEY : f.sessionKey) : env;
   if (!base) return null;
+  const secret = sessionSecret() ?? BROKEN_KEY;
   // Turning two-factor on or off changes the token too (see two-factor-file.ts).
   const stamp = twoFactorStamp();
-  return sessionToken(stamp ? `${base}\n2fa:${stamp}` : base);
+  return sessionToken(secret, stamp ? `${base}\n2fa:${stamp}` : base);
 }
 
 export async function setPassword(next: string) {
