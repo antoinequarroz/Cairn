@@ -52,7 +52,12 @@ Un seul endroit, chez moi, pour ce que j'écris et ce que je dois garder secret.
 
 ## Étape 5 : apps natives
 
-- [ ] **Mac (Tauri)** : raccourci global de capture, agent SSH qui sert les clés du coffre, déverrouillage par Touch ID
+Une seule app SwiftUI pour le Mac et l'iPhone ([apps/apple](../apps/apple/README.md)), plutôt que Tauri : le remplissage automatique des mots de passe sur iPhone demande de toute façon une extension native, et le même code Swift sert les deux appareils.
+
+- [x] Première version Mac et iPhone : connexion (avec double authentification), dossiers, recherche, lecture et écriture des notes, conflits entre appareils détectés
+- [ ] Déchiffrer les notes à cadenas et ouvrir le coffre dans l'app (Argon2id + AES-GCM en Swift)
+- [ ] Hors ligne : copie locale des notes, synchronisation au retour du réseau
+- [ ] **Mac** : raccourci global de capture, agent SSH qui sert les clés du coffre, déverrouillage par Touch ID
 - [ ] **iPhone** : Face ID, remplissage automatique des mots de passe, partage vers Cairn
 - [ ] Le code du chiffrement embarqué dans l'app, et plus servi par le VPS
 

@@ -21,6 +21,7 @@ En ligne sur **https://cairn.antoinequarroz.ch** (voir [docs/DEPLOIEMENT.md](doc
 - **Accès protégé** par mot de passe, modifiable dans Réglages, avec **double authentification** (code d'une app comme 1Password, codes de secours) en option ([docs/SECURITE.md](docs/SECURITE.md)).
 - **Sauvegardes chiffrées** chaque nuit, copiées hors du VPS et gardées 30 jours, avec un script de restauration testé ([docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md), étape 5).
 - **Installable** comme une app sur Mac (Safari, « Ajouter au Dock ») et sur iPhone (« Sur l'écran d'accueil »).
+- **Apps Mac et iPhone natives** (première version, SwiftUI) : connexion avec la double authentification, dossiers, recherche, lecture et écriture des notes. Le code est dans [apps/apple](apps/apple/README.md).
 - **Projets et dossiers** pour ranger notes et discussions, par glisser-déposer dans la barre latérale.
 - **Discussions avec l'IA**, rangées dans les projets : consignes par projet, notes épinglées en contexte, réponses enregistrées sur le serveur même si l'onglet se ferme.
 - **Interroger toutes ses notes** : « qu'est-ce que j'ai noté sur Caddy ? ». À chaque message, l'IA cherche dans toutes les notes (ou un seul dossier) avec l'index plein texte, répond à partir de ce qu'elle trouve et cite les notes en lien. Une note chiffrée n'est jamais cherchée ni envoyée.
@@ -72,7 +73,7 @@ Le **mot de passe maître du coffre** n'est pas une variable : il se choisit dan
 | GET | `/api/notes` | Lister les notes (titre, extrait, date) |
 | POST | `/api/notes` | Créer une note (`title`, `content` en Markdown, `folderId` facultatif) |
 | GET | `/api/notes/:id` | Lire une note |
-| PATCH | `/api/notes/:id` | Modifier une note (`folderId: null` la sort de son dossier) |
+| PATCH | `/api/notes/:id` | Modifier une note (`folderId: null` la sort de son dossier ; avec `ifUpdatedAt`, refuse en 409 si elle a changé entre-temps) |
 | DELETE | `/api/notes/:id` | Supprimer une note |
 | POST | `/api/files` | Commencer l'envoi d'un fichier (`name`, `mime`, `size`) |
 | PUT | `/api/uploads/:id?offset=N` | Envoyer un morceau du fichier (8 Mo au plus) |
