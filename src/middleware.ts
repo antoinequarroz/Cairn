@@ -1,13 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE } from "./server/auth";
-import { checkAccess } from "./server/session";
+import { checkAccess, requestSite } from "./server/session";
 
 // Everything is private once a password is set (APP_PASSWORD, or the one changed in Réglages).
 // Scripts (Hermes, Claude Code) can use "Authorization: Bearer <API_TOKEN>" on /api routes,
 // except the vault: its content is only ever opened in a browser, with the master password.
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const access = await checkAccess(pathname, req.headers.get("authorization"), req.cookies.get(SESSION_COOKIE)?.value);
+  const access = await checkAccess(pathname, req.headers.get("authorization"), req.cookies.get(SESSION_COOKIE)?.value, requestSite(req));
   if (access === "unconfigured") return new NextResponse("Cairn : définis APP_PASSWORD avant de mettre en ligne.", { status: 503 });
   if (access === "ok") return NextResponse.next();
 

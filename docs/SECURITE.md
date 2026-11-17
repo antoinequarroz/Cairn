@@ -57,7 +57,10 @@ Réglages > Sécurité > **Activer** : un QR code à scanner avec une app d'auth
 
 - Tout est privé sauf la page de connexion. En production, Cairn refuse de démarrer sans mot de passe.
 - 8 erreurs (mot de passe ou code, à la connexion comme dans Réglages) bloquent la connexion pendant 15 minutes.
-- Changer le mot de passe de l'app déconnecte tous les autres appareils.
+- Changer le mot de passe de l'app déconnecte tous les autres appareils. Réglages > Sécurité > **Déconnecter les autres appareils** fait de même sans changer de mot de passe (téléphone perdu, navigateur resté connecté). Se déconnecter sur un appareil n'efface que son cookie : pour couper un cookie qui aurait été copié, c'est ce bouton.
+- Le cookie de session est signé avec une clé aléatoire du serveur (`data/session.key`) : connaître le mot de passe ne suffit pas à en fabriquer un, il faut passer par la connexion (et donc par le code de double authentification). Supprimer `session.key` déconnecte tout le monde.
+- Une modification (POST, PUT, PATCH, DELETE) envoyée par une page d'un autre site est refusée, même avec le cookie. C'est utile parce que les autres apps de la suite (`*.postmelo.ch`) sont le « même site » pour le navigateur : `SameSite=Lax` ne suffirait pas.
+- Une politique de sécurité du contenu (CSP) limite ce que les pages chargent : scripts et requêtes restent sur Cairn. Si un texte piégé passait un jour le nettoyage du Markdown, il ne pourrait pas envoyer le coffre ouvert ailleurs avec `fetch()`.
 - `API_TOKEN` donne accès aux notes et aux fichiers, **jamais** aux routes du coffre ni aux réglages (mot de passe, clés d'IA), qui ne se gèrent que depuis un navigateur connecté.
 - Le Markdown est nettoyé avant affichage. Les fichiers joints qui ne sont pas des images, vidéos, sons ou PDF sont toujours téléchargés, jamais affichés : un fichier HTML envoyé ne peut pas exécuter de script sur l'app.
 - Cookie de session `HttpOnly`, `SameSite=Lax`, `Secure` en production.

@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Check, Copy, ShieldCheck } from "lucide-react";
+import { Archive, Check, Copy, LogOut, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { api, cn } from "@/lib/utils";
@@ -21,6 +21,7 @@ export function SecuritySettings({ passwordRequired }: { passwordRequired: boole
   return (
     <>
       <TwoFactor passwordRequired={passwordRequired} />
+      {passwordRequired && <Sessions />}
       <BackupCard />
     </>
   );
@@ -200,6 +201,61 @@ function TwoFactor({ passwordRequired }: { passwordRequired: boolean }) {
             </Button>
           </div>
         </form>
+      )}
+    </section>
+  );
+}
+
+/** Logs every other device out: a lost phone, a browser left signed in somewhere. */
+function Sessions() {
+  const [asking, setAsking] = useState(false);
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api("/api/settings/sessions", { method: "POST", json: { password } });
+      setAsking(false);
+      toast("Autres appareils déconnectés", { description: "Ils devront se reconnecter, apps Mac et iPhone comprises." });
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setPassword("");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-5 shadow-card">
+      <div>
+        <h2 className="flex items-center gap-1.5 text-[15px] font-medium">
+          <LogOut className="size-4 text-accent" />
+          Appareils connectés
+        </h2>
+        <p className="mt-1 text-[13px] text-ink-3">
+          Un téléphone perdu, un navigateur resté connecté ailleurs ? Déconnecte tous les autres appareils d&apos;un coup. Celui-ci reste connecté.
+        </p>
+      </div>
+      {asking ? (
+        <form onSubmit={submit} className="flex flex-col gap-3">
+          <Field label="Mot de passe de l'app">
+            <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className={inputClass} autoFocus />
+          </Field>
+          <div className="flex gap-2">
+            <Button variant="danger" disabled={busy || !password}>
+              {busy ? "Vérification…" : "Déconnecter les autres appareils"}
+            </Button>
+            <Button type="button" variant="ghost" onClick={() => setAsking(false)}>
+              Annuler
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <div>
+          <Button onClick={() => setAsking(true)}>Déconnecter les autres appareils</Button>
+        </div>
       )}
     </section>
   );
