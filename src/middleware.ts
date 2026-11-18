@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { RETURN_COOKIE, RETURN_MAX_AGE, safeReturn } from "@/lib/suite";
 import { SESSION_COOKIE } from "./server/auth";
 import { checkAccess, requestSite } from "./server/session";
 
@@ -15,7 +16,11 @@ export async function middleware(req: NextRequest) {
   const url = req.nextUrl.clone();
   url.pathname = "/login";
   url.search = "";
-  return NextResponse.redirect(url);
+  const res = NextResponse.redirect(url);
+  // "Note de réunion" opened from another app before signing in: come back to it afterwards.
+  const back = safeReturn(pathname + req.nextUrl.search);
+  if (back) res.cookies.set(RETURN_COOKIE, encodeURIComponent(back), { path: "/", maxAge: RETURN_MAX_AGE, sameSite: "lax", secure: req.nextUrl.protocol === "https:" });
+  return res;
 }
 
 export const config = {

@@ -16,6 +16,9 @@ export async function checkAccess(pathname: string, authorization: string | null
   const apiToken = process.env.API_TOKEN;
   const bearer = authorization?.replace(/^Bearer\s+/i, "");
   if (apiToken && bearer && pathname.startsWith("/api/") && !pathname.startsWith("/api/vault") && !pathname.startsWith("/api/settings") && safeEqual(bearer, apiToken)) return "ok";
+  // The other apps of the suite ask which notes link to one of their pages, and nothing else.
+  const suiteToken = process.env.SUITE_TOKEN;
+  if (suiteToken && suiteToken.length >= 32 && bearer && pathname === "/api/links" && (!request || request.method === "GET") && safeEqual(bearer, suiteToken)) return "ok";
   if (request && crossSite(request)) return "denied";
   return cookie && safeEqual(cookie, expected) ? "ok" : "denied";
 }

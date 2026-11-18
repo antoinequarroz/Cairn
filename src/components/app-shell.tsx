@@ -6,11 +6,13 @@ import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { Toaster } from "sonner";
 import { NotesProvider, useNotes } from "@/lib/notes-store";
+import { SuiteProvider, type Suite } from "@/lib/suite-context";
 import { lockVault, useVaultKey } from "@/lib/vault-store";
 import { cn } from "@/lib/utils";
 import { CommandMenu } from "./command-menu";
 import { FolderTree } from "./folder-tree";
 import { Logo } from "./logo";
+import { SuiteMenu } from "./suite-menu";
 import { Kbd } from "./ui";
 
 const NAV = [
@@ -20,11 +22,13 @@ const NAV = [
   { href: "/settings", label: "Réglages", Icon: Settings },
 ];
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, suite }: { children: React.ReactNode; suite: Suite }) {
   return (
-    <NotesProvider>
-      <Shell>{children}</Shell>
-    </NotesProvider>
+    <SuiteProvider value={suite}>
+      <NotesProvider>
+        <Shell>{children}</Shell>
+      </NotesProvider>
+    </SuiteProvider>
   );
 }
 
@@ -81,6 +85,7 @@ function Sidebar() {
         <Logo />
         <span className="text-[15px] font-semibold tracking-[-0.01em]">Cairn</span>
         <span className="ml-auto rounded-md border border-line px-1.5 py-px font-mono text-[10px] text-ink-3">v0.1</span>
+        <SuiteMenu className="-mr-1" />
       </div>
 
       <div className="mb-2 flex gap-1.5">
@@ -153,7 +158,9 @@ function MobileBar() {
           <Icon className="size-[18px]" />
         </Link>
       ))}
-      <button onClick={() => setCommandOpen(true)} aria-label="Rechercher" className="ml-auto flex size-9 items-center justify-center rounded-lg text-ink-3">
+      <span className="ml-auto" />
+      <SuiteMenu align="right" />
+      <button onClick={() => setCommandOpen(true)} aria-label="Rechercher" className="flex size-9 items-center justify-center rounded-lg text-ink-3">
         <Search className="size-[18px]" />
       </button>
       <button onClick={() => newNote()} aria-label="Nouvelle note" className="press flex size-9 items-center justify-center rounded-lg bg-accent text-accent-ink">

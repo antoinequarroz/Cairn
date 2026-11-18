@@ -64,6 +64,8 @@ Une seule app SwiftUI pour le Mac et l'iPhone ([apps/apple](../apps/apple/README
 
 ## Étape 6 : la suite
 
-- [ ] Connexion unique entre Cairn, Metricove et Alfred
-- [ ] Une note liée à un rendez-vous Alfred ou à un post Metricove
+- [x] Connexion unique entre Cairn, Metricove et Alfred (Compte Postmelo)
+- [x] Menu des apps de la suite, cartes pour les liens vers Alfred, Metricove et TickUp, « Note de réunion » ([SUITE.md](SUITE.md))
+- [ ] Le bouton « Note de réunion » et les « Notes liées » côté Alfred (Cairn est prêt)
+- [ ] Un graphique Metricove à jour dans une note
 - [ ] Composants de design partagés entre les trois apps
