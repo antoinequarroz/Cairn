@@ -17,7 +17,7 @@ const onDisk = (needle: string) => files().some((f) => fs.readFileSync(f).includ
 
 describe("note verrouillée après coup", () => {
   it("son texte en clair ne reste ni dans la base ni dans le journal", () => {
-    const secret = "clef-privee-ed25519-AAAAC3NzaC1lZDI1NTE5-tres-secrete";
+    const secret = "TEXTE-EN-CLAIR-DE-LA-NOTE-A-NE-PAS-GARDER";
     const note = createNote({ title: "Serveur", content: `Ma clé : ${secret}\n`.repeat(20) });
     // Several writes, as the autosave does, so the clear text lands in more than one page version.
     updateNote(note.id, { content: `Ma clé : ${secret} (modifiée)\n`.repeat(20) });
