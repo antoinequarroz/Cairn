@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { codeLabel, isNoteLink } from "@/lib/markdown";
+import { matchSuiteLink, type SuiteApp } from "@/lib/suite";
+import { useSuite } from "@/lib/suite-context";
 import { cn } from "@/lib/utils";
 
 // Lucide's "copy" and "check", inline: the buttons are added to sanitized HTML, outside React.
@@ -58,9 +60,47 @@ export function withCodeBlocks(html: string) {
   return t.innerHTML;
 }
 
-/** Rendered Markdown, with a copy button on every code block. */
+/**
+ * Links to the other apps of the suite (Alfred, Metricove…). Alone on its line, a link becomes a card
+ * (app, kind, title); inside a sentence, it gets the app's dot. Done on the sanitized HTML string, like
+ * the code blocks: only classes, text and a colour are added, and the link keeps its address.
+ */
+export function withSuiteLinks(html: string, apps: SuiteApp[]) {
+  if (!apps.length || !html.includes("<a") || typeof document === "undefined") return html;
+  const t = document.createElement("template");
+  t.innerHTML = html;
+  for (const a of t.content.querySelectorAll<HTMLAnchorElement>("a[href]")) {
+    const match = matchSuiteLink(a.getAttribute("href") ?? "", apps);
+    if (!match) continue;
+    const { app, kind } = match;
+    a.target = "_blank";
+    a.rel = "noreferrer noopener";
+    a.style.setProperty("--app", app.color);
+    const p = a.parentElement;
+    const alone = p?.tagName === "P" && p.childNodes.length === 1;
+    const text = (a.textContent ?? "").trim();
+    if (!alone) {
+      a.classList.add("suite-chip");
+      a.title = `${kind} · ${app.name}`;
+      continue;
+    }
+    // A bare address says nothing: the card shows where it leads instead.
+    const title = !text || text === a.href || text === a.getAttribute("href") ? `${kind} dans ${app.name}` : text;
+    const mark = Object.assign(document.createElement("span"), { className: "suite-card-mark", textContent: app.name.slice(0, 1).toUpperCase() });
+    const body = Object.assign(document.createElement("span"), { className: "suite-card-body" });
+    const meta = Object.assign(document.createElement("span"), { className: "suite-card-meta", textContent: `${app.name} · ${kind}` });
+    const name = Object.assign(document.createElement("span"), { className: "suite-card-title", textContent: title });
+    body.append(meta, name);
+    a.className = "suite-card";
+    a.replaceChildren(mark, body);
+  }
+  return t.innerHTML;
+}
+
+/** Rendered Markdown, with a copy button on every code block and cards for the links to the suite. */
 export function Prose({ html, className }: { html: string; className?: string }) {
-  const full = useMemo(() => withCodeBlocks(html), [html]);
+  const { apps } = useSuite();
+  const full = useMemo(() => withSuiteLinks(withCodeBlocks(html), apps), [html, apps]);
   const router = useRouter();
 
   const onClick = async (e: React.MouseEvent) => {

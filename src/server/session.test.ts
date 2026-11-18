@@ -102,3 +102,19 @@ describe("requests from another site (CSRF)", () => {
     expect(crossSite(site("GET", "cross-site", null))).toBe(false);
   });
 });
+
+describe("SUITE_TOKEN", () => {
+  const TOKEN = "s".repeat(40);
+  const get = { method: "GET", secFetchSite: null, origin: null, host: "cairn.postmelo.ch" };
+  it("opens /api/links to the other apps, and nothing else", async () => {
+    vi.stubEnv("SUITE_TOKEN", TOKEN);
+    expect(await checkAccess("/api/links", `Bearer ${TOKEN}`, undefined, get)).toBe("ok");
+    expect(await checkAccess("/api/notes", `Bearer ${TOKEN}`, undefined, get)).toBe("denied");
+    expect(await checkAccess("/api/links", `Bearer ${TOKEN}`, undefined, { ...get, method: "POST" })).toBe("denied");
+    expect(await checkAccess("/api/links", "Bearer autre", undefined, get)).toBe("denied");
+  });
+  it("is ignored when too short", async () => {
+    vi.stubEnv("SUITE_TOKEN", "court");
+    expect(await checkAccess("/api/links", "Bearer court", undefined, get)).toBe("denied");
+  });
+});

@@ -45,7 +45,7 @@ export function LoginForm({ compte }: { compte: boolean }) {
     });
     const data = (await res.json().catch(() => ({}))) as { error?: string; needCode?: boolean; };
     if (res.ok) {
-      window.location.href = "/notes";
+      window.location.href = "/";
       return;
     }
     if (data.needCode && !needCode) {

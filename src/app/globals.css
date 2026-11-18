@@ -330,6 +330,67 @@ body::before {
   background: none;
   padding: 0;
 }
+/* Links to the other apps of the suite (added by <Prose>): a card alone on its line, a dot in a sentence. */
+.prose-cairn a.suite-card {
+  display: flex;
+  max-width: 420px;
+  align-items: center;
+  gap: 0.75em;
+  margin: 0.2em 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 0.6em 0.8em;
+  color: var(--ink);
+  text-decoration: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: border-color 150ms ease, transform 160ms var(--ease-out);
+}
+.prose-cairn a.suite-card:hover {
+  border-color: color-mix(in oklab, var(--app, var(--accent)) 55%, var(--line-strong));
+}
+.prose-cairn a.suite-card:active {
+  transform: scale(0.99);
+}
+.prose-cairn .suite-card-mark {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: var(--app, var(--accent));
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+}
+.prose-cairn .suite-card-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  line-height: 1.35;
+}
+.prose-cairn .suite-card-meta {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.prose-cairn .suite-card-title {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.prose-cairn a.suite-chip::before {
+  content: "";
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  margin-right: 0.35em;
+  border-radius: 999px;
+  background: var(--app, var(--accent));
+  vertical-align: 0.08em;
+}
 /* Code blocks: a header with the language and a copy button (added by <Prose>). */
 .prose-cairn .code-block {
   margin: 0.8em 0;

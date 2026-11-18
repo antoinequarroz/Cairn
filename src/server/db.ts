@@ -129,6 +129,18 @@ export function listNotes(): NoteSummary[] {
   return rows.map((r) => ({ id: r.id, title: r.title, encrypted: !!r.encrypted, folderId: r.folder_id, updatedAt: r.updated_at, excerpt: r.content.replace(/\s+/g, " ").trim().slice(0, 160) }));
 }
 
+/**
+ * The notes that link to `url` (a page of another app of the suite), newest first. Locked notes are
+ * out: the server can't read them. Matched on the text, so "…/events/12" doesn't find "…/events/123".
+ */
+export function notesLinkingTo(url: string, limit = 20): { id: string; title: string; updatedAt: string }[] {
+  const rows = db()
+    .prepare("select id, title, updated_at, content from notes where encrypted = 0 and instr(content, ?) > 0 order by updated_at desc limit 200")
+    .all(url) as Pick<NoteRow, "id" | "title" | "updated_at" | "content">[];
+  const bounded = new RegExp(url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![\\w/-])");
+  return rows.filter((r) => bounded.test(r.content)).slice(0, limit).map((r) => ({ id: r.id, title: r.title, updatedAt: r.updated_at }));
+}
+
 export function getNote(id: string): Note | null {
   const r = db().prepare("select * from notes where id = ?").get(id) as NoteRow | undefined;
   return r ? toNote(r) : null;
