@@ -47,9 +47,11 @@ Les clés saisies dans Réglages sont chiffrées avec `CAIRN_SECRET` si tu l'as 
 
 ### 1. Hermes, comme Metricove
 
-Hermes tourne déjà sur le VPS, avec le modèle que tu lui as donné. Il se règle aussi dans Réglages > IA (adresse et clé).
+C'est la voie à prendre si tu as un abonnement plutôt qu'une clé d'API et un Hermes **que tu administres** sur le VPS, avec le modèle que tu lui as donné. Il se règle aussi dans Réglages > IA (adresse et clé).
 
-Si Hermes sert déjà Metricove, son API est activée. Sinon, dans `~/.hermes/.env` sur le VPS :
+> État au 17 novembre 2026 : Hermes ne tourne pas sur `antoine-vps`. Ton Hermes est l'offre gérée de Hostinger, sans accès root ni API `/v1/chat/completions` à clé : Cairn ne peut pas s'y brancher tel quel. Il faut installer Hermes Agent sur le VPS (étapes ci-dessous), ou passer par une clé d'API (voies 2 et 3).
+
+Une fois Hermes installé sur le VPS, dans `~/.hermes/.env` :
 
 ```env
 API_SERVER_ENABLED=true
