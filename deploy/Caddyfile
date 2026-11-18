@@ -1,5 +1,5 @@
 # Caddy obtient et renouvelle les certificats HTTPS tout seul.
-# Utilisé seulement avec « --profile caddy ». Avec le Caddy de Metricove, voir docs/DEPLOIEMENT.md.
+# Utilisé seulement avec « --profile caddy ». Avec le Caddy partagé du VPS, voir docs/DEPLOIEMENT.md.
 
 {$CAIRN_DOMAIN} {
 	encode zstd gzip
