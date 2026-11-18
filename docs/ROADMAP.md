@@ -13,7 +13,7 @@ Un seul endroit, chez moi, pour ce que j'écris et ce que je dois garder secret.
 - [x] Mot de passe de l'app, recherche ⌘K, thème clair et sombre
 - [x] API pour Hermes et Claude Code
 - [x] Docker, Caddy, sauvegardes, installable en PWA
-- [x] Sauvegardes chiffrées (age) chaque nuit, copiées hors du VPS, 30 jours, script de restauration testé
+- [x] Sauvegardes chiffrées (age) chaque nuit, copiées hors du VPS, 30 jours, script de restauration testé (dernier exercice depuis Swiss Backup : 18.11.2026)
 - [x] Double authentification (TOTP) avec codes de secours
 
 ## Étape 2 : un vrai outil de notes

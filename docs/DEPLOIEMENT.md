@@ -179,6 +179,36 @@ Testé de bout en bout le 17.11.2026 : sauvegarde d'une installation avec une no
 
 **Teste une restauration (`--check` suffit) une fois par trimestre.**
 
+**Attention à `CAIRN_SECRET`** : s'il est défini dans `~/cairn/.env`, l'archive ne contient pas `secret.key` (`--check` affiche « secret.key : non »), et la clé qui chiffre les clés d'IA de Réglages n'est **que** dans ce `.env`. Garde une copie du `.env` hors du VPS (1Password, avec la clé de sauvegarde). Sans lui, une restauration ramène notes et coffre, mais il faut ressaisir les clés d'IA dans Réglages > IA.
+
+### Exercice de restauration sur le Mac (sans toucher au VPS)
+
+Pour le test trimestriel, sans arrêter Cairn ni lancer de build sur le VPS (2 Go de RAM) : la sauvegarde est lue **depuis la destination hors du VPS**, déchiffrée sur le Mac et restaurée dans une installation Docker jetable, puis tout est effacé. Il faut Docker Desktop et `age` sur le Mac.
+
+```bash
+W=$(mktemp -d) && chmod 700 $W && cd $W
+F=$(ssh vps 'rclone lsf swissbackup:cairn | sort | tail -1')   # la plus récente
+ssh vps "rclone cat swissbackup:cairn/$F" > $F                # rien n'est écrit sur le disque du VPS
+ssh vps "sha256sum ~/cairn-backups/$F"; shasum -a 256 $F       # la copie distante = la copie locale
+
+mkdir src && git -C ~/Lab/projets/Cairn archive origin/main | tar -x -C src   # le code déployé, pas ta copie de travail
+cd src
+printf 'APP_PASSWORD=test-%s\nCAIRN_BIND=127.0.0.1\nCAIRN_PORT=3921\n' "$(openssl rand -hex 8)" | tee .env > deploy/.env
+cd deploy && export COMPOSE_PROJECT_NAME=cairn-restore-test       # projet Docker séparé, volume vide
+docker compose build cairn
+./restore.sh $W/$F -i ~/cairn-backup-key.txt --check
+./restore.sh $W/$F -i ~/cairn-backup-key.txt --yes
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3921/login   # 200
+docker compose exec -T cairn node -e 'const db=require("better-sqlite3")("/data/cairn.db",{readonly:true});console.log(db.pragma("integrity_check",{simple:true}), db.prepare("select count(*) n from notes").get().n, db.prepare("select count(*) n from vault_items where data like ?").get("v1.%").n)'
+                                                                   # « ok <notes> <éléments du coffre chiffrés> »
+
+docker compose down -v --rmi local && cd / && rm -rf $W            # efface volume, image et archive déchiffrée
+```
+
+Les éléments du coffre restent chiffrés (`v1.…`) : la sauvegarde ne contient ni le mot de passe maître ni la clé du coffre en clair (`vault_meta` ne garde que la clé enveloppée et les paramètres de dérivation). Pour aller plus loin, ouvre http://127.0.0.1:3921 avant le `down`, connecte-toi avec ton mot de passe et ta double authentification, et déverrouille le coffre.
+
+Fait le 18.11.2026 avec `cairn-2026-11-18_0300.tar.gz.age` lue sur Infomaniak Swiss Backup : même empreinte SHA-256 que la copie du VPS, base intacte, 1 note, 91 éléments du coffre (tous chiffrés), 3 dossiers, 1 discussion, `auth.json` et `two-factor.json` présents, app relancée sur la base restaurée (page de connexion 200, API 401 sans session).
+
 ## 6. Mettre à jour
 
 D'abord, vérifie qu'aucun autre build ne tourne sur le VPS (2 Go de RAM). Puis sauvegarde et reconstruis :
