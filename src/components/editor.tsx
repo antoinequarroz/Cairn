@@ -182,7 +182,18 @@ export function Editor({ id }: { id: string }) {
     const encrypted = !draft.current.encrypted;
     setNote({ ...note, encrypted });
     change({ encrypted }, true);
-    toast(encrypted ? "Note chiffrée de bout en bout" : "Note déchiffrée", { description: encrypted ? "Le serveur ne peut plus la lire. Son titre reste visible." : "Elle est de nouveau lisible par le serveur (recherche, IA)." });
+    if (!encrypted) {
+      toast("Note déchiffrée", { description: "Elle est de nouveau lisible par le serveur (recherche, IA)." });
+      return;
+    }
+    // Text written before the padlock was saved in clear: it stays in the nightly backups until they expire.
+    const hadClearText = !!content.trim();
+    toast("Note chiffrée de bout en bout", {
+      description: hadClearText
+        ? "Le serveur ne peut plus la lire, son titre reste visible. Sa version en clair reste dans les sauvegardes des 30 derniers jours (voir Sécurité dans la documentation pour les purger)."
+        : "Le serveur ne peut plus la lire. Son titre reste visible.",
+      duration: hadClearText ? 10_000 : undefined,
+    });
   };
 
   const del = async () => {

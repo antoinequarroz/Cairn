@@ -154,7 +154,7 @@ Dans une **discussion**, à chaque message : l'historique de la discussion, le n
 
 Les clés d'API restent sur le serveur, chiffrées quand elles sont saisies dans Réglages : le navigateur ne les voit jamais.
 
-Le contenu d'une note et son titre sont présentés à l'IA comme un texte à travailler, pas comme des ordres. Ils sont placés entre des balises au nom tiré au hasard à chaque demande, qu'un texte collé ne peut ni deviner ni refermer. Si tu colles une page web qui contient « ignore tes instructions… », l'IA est censée ne pas obéir. C'est une précaution, pas une garantie : relis avant d'insérer. Avec Hermes, qui a des outils, la vraie barrière reste ce que tu as autorisé à l'agent.
+Le contenu d'une note et son titre sont présentés à l'IA comme un texte à travailler, pas comme des ordres. Ils sont placés entre des balises au nom tiré au hasard à chaque demande, qu'un texte collé ne peut ni deviner ni refermer. Si tu colles une page web qui contient « ignore tes instructions… », l'IA est censée ne pas obéir. C'est une précaution, pas une garantie : relis avant d'insérer. Les caractères invisibles à l'écran sont retirés avant l'envoi, et dans les discussions les commentaires HTML des notes aussi, pour que l'IA lise ce que tu vois. Le modèle est prévenu qu'une note ne peut jamais lui faire utiliser un outil. Avec Hermes, qui a des outils, la vraie barrière reste ce que tu as autorisé à l'agent : pour Cairn, il n'en a besoin d'aucun (voir [SECURITE.md](SECURITE.md), « Ce que l'IA voit »).
 
 Les notes épinglées à une discussion sont présentées de la même façon : comme des documents à consulter, entre des balises au nom tiré au hasard, jamais comme des ordres. Les consignes du dossier, elles, sont tes instructions et sont suivies comme telles.
 

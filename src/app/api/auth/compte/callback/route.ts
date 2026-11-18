@@ -3,7 +3,7 @@ import { SESSION_COOKIE } from "@/server/auth";
 import { appReturn, createHandoff, pendingApp } from "@/server/compte-app";
 import { COMPTE_OK_COOKIE, COMPTE_OK_MAX_AGE, comptePass, finishSignIn, mayEnter, PENDING_COOKIE, settings } from "@/server/compte";
 import { currentSessionToken, SESSION_MAX_AGE } from "@/server/password";
-import { isLocked } from "@/server/throttle";
+import { clientKey, isLocked } from "@/server/throttle";
 import { twoFactorRequired } from "@/server/two-factor";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +29,7 @@ export async function GET(req: Request) {
   const fail = (keyword: string) => go(app ? appReturn({ erreur: keyword }) : `/login?compte=${keyword}`);
   const config = settings();
   if (!config) return app ? fail("off") : go("/login");
-  if (isLocked()) return fail("refus");
+  if (isLocked(clientKey(req))) return fail("refus");
   let person;
   try {
     // The pending cookie proves this browser started the sign-in: a link forged elsewhere has no matching one.

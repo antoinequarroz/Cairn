@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { setSessionCookie } from "@/server/cookie";
 import { body, fail } from "@/server/http";
 import { checkPassword, passwordRequired, rotateSessionSecret } from "@/server/password";
-import { isLocked, LOCKED_MESSAGE, recordFailure, recordSuccess } from "@/server/throttle";
+import { clientKey, isLocked, LOCKED_MESSAGE, recordFailure, recordSuccess } from "@/server/throttle";
 
 export const dynamic = "force-dynamic";
 
@@ -13,13 +13,14 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: Request) {
   const { password } = await body(req);
-  if (isLocked()) return fail(LOCKED_MESSAGE, 429);
+  const client = clientKey(req);
+  if (isLocked(client)) return fail(LOCKED_MESSAGE, 429);
   // 403, not 401: a 401 sends the page back to the login.
   if (passwordRequired() && !(await checkPassword(password))) {
-    await recordFailure();
+    await recordFailure(client);
     return fail("Mot de passe incorrect", 403);
   }
-  recordSuccess();
+  recordSuccess(client);
   rotateSessionSecret();
   return setSessionCookie(NextResponse.json({ ok: true }));
 }

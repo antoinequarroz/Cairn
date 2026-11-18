@@ -122,6 +122,19 @@ describe("login with two-factor", () => {
     const locked = await post(login, { password: PASSWORD, code: totpCode(SECRET, Date.now()) });
     expect(locked.status).toBe(429);
   });
+
+  it("someone else locked out by their guesses doesn't lock out another address", async () => {
+    vi.useRealTimers();
+    vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => {
+      fn();
+      return 0;
+    }) as unknown as typeof setTimeout);
+    const from = (ip: string, json: unknown) =>
+      login(new Request("http://cairn.test/api", { method: "POST", headers: { "Content-Type": "application/json", host: "cairn.test", "x-forwarded-for": ip }, body: JSON.stringify(json) }));
+    for (let i = 0; i < 8; i++) await from("203.0.113.66", { password: "faux" });
+    expect((await from("203.0.113.66", { password: PASSWORD })).status).toBe(429);
+    expect((await from("198.51.100.10", { password: PASSWORD })).status).toBe(200);
+  });
 });
 
 describe("Réglages > Sécurité", () => {
