@@ -150,7 +150,11 @@ export function updateNote(id: string, patch: { title?: string; content?: string
   db()
     .prepare("update notes set title = ?, content = ?, encrypted = ?, folder_id = ?, updated_at = ? where id = ?")
     .run(patch.title ?? cur.title, patch.content ?? cur.content, (patch.encrypted ?? cur.encrypted) ? 1 : 0, patch.folderId === undefined ? cur.folderId : patch.folderId, touched ? now() : cur.updatedAt, id);
-  if (patch.encrypted && !cur.encrypted) purgeSearchIndex(db());
+  if (patch.encrypted && !cur.encrypted) {
+    purgeSearchIndex(db());
+    // The clear text also sits in the write-ahead log until the next checkpoint: fold it in now and empty the log.
+    db().pragma("wal_checkpoint(TRUNCATE)");
+  }
   return getNote(id);
 }
 
