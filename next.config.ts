@@ -24,7 +24,7 @@ const CSP = [
 const nextConfig: NextConfig = {
   // Self-contained server for the Docker image.
   output: "standalone",
-  serverExternalPackages: ["better-sqlite3"],
+  serverExternalPackages: ["better-sqlite3", "@sentry/node"],
   async headers() {
     return [
       {
